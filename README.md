@@ -1,6 +1,14 @@
 # FourtyTwo
 
-A Python implementation of **42**, the classic Texas domino trick-taking game.
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live%20Demo-gold?logo=github)](https://tuckerbrewer12.github.io/FourtyTwo/)
+[![MIT License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)](https://python.org)
+
+**🌐 Landing Page:** https://tuckerbrewer12.github.io/FourtyTwo/
+
+A real-time multiplayer implementation of **42**, the classic Texas domino trick-and-trump game invented in 1885.
+
+> **Quick start:** `pip install flask flask-socketio eventlet && python server/fourty_two_socketio_server.py` → open `http://localhost:5000`
 
 ## About the Game
 
@@ -28,10 +36,28 @@ A Python implementation of **42**, the classic Texas domino trick-taking game.
 
 ---
 
+## GitHub Pages
+
+The static landing page in `docs/` is automatically deployed to **GitHub Pages** via the workflow at `.github/workflows/pages.yml`. Every push to `main` redeploys the landing page.
+
+To enable GitHub Pages in your fork:
+1. Go to **Settings → Pages**
+2. Set **Source** to **GitHub Actions**
+3. The next push to `main` will deploy the site
+
+The landing page is 100% static HTML/CSS/JS — no build step required.
+
+---
+
 ## Project Structure
 
 ```
 FourtyTwo/
+├── docs/                   # ← Static GitHub Pages landing page
+│   └── index.html
+├── .github/workflows/
+│   └── pages.yml           # ← Auto-deploy docs/ to GitHub Pages
+│
 ├── domino.py               # Domino class: comparison, value, suit logic
 ├── domino_set.py           # DominoesSet: full 28-domino set, shuffle & deal
 ├── player.py               # Player class: hand management, move validation
@@ -39,14 +65,16 @@ FourtyTwo/
 ├── console_game.py         # Interactive CLI game runner
 │
 ├── server/
-│   ├── fourty_two_server.py          # Flask REST API server
-│   └── fourty_two_socketio_server.py # Flask-SocketIO real-time server (WIP)
+│   ├── fourty_two_socketio_server.py  # Flask-SocketIO real-time multiplayer server
+│   └── templates/
+│       └── index.html                 # Game SPA frontend
 │
 ├── test_domino.py          # Unit tests for Domino
 ├── test_domino_set.py      # Unit tests for DominoesSet
 ├── test_player.py          # Unit tests for Player
 ├── test_fourty_two.py      # Unit tests for FourtyTwo game logic
-└── test_fourty_two_server.py  # Integration tests for Flask API
+├── test_fourty_two_server.py  # Integration tests for Flask API
+└── test_stress.py          # Stress / concurrency tests
 ```
 
 ---
