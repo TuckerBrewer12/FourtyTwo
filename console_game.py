@@ -174,7 +174,7 @@ class ConsoleGame:
         print("Welcome to 42!")
         print("==============")
         
-        # Deal dominoe
+        # Deal dominoes
         self.game.deal_dominoes()
         
         # Bidding round
@@ -191,7 +191,7 @@ class ConsoleGame:
         tricks_played = 0
 
         first_move = highest_bidder
-        while self._team1_score < self.game.get_bid() and self._team2_score < self.game.get_bid(): 
+        while tricks_played < 7:
             print(f"\n--- Trick {tricks_played + 1} ---")
             
             # Play the trick
@@ -215,7 +215,7 @@ class ConsoleGame:
     
     def play_trick(self, first_move):
         for i in range(4):
-            player_num = (first_move+i) % 4
+            player_num = (first_move - 1 + i) % 4 + 1
             domino = self.get_player_move(player_num)
             self.game.play(player_num, domino)
             self.display_trick(self.game.get_trick())

@@ -60,6 +60,10 @@ class Domino:
         if isinstance(other, Domino):
             return self._domino == other._domino
         return False
+
+    def __hash__(self):
+        """Make Domino hashable so it can be used in sets and as dict keys"""
+        return hash(self._domino)
     
     def __gt__(self, other):
         """Compare domino greater than"""
