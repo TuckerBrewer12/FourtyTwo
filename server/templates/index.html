@@ -1,935 +1,1490 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>42 – The Domino Game</title>
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  <style>
-    /* ================================================================
-       RESET & VARIABLES
-       ================================================================ */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>42 – Texas Domino</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet"/>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+/* =====================================================================
+   CSS CUSTOM PROPERTIES
+===================================================================== */
+:root{
+  --felt:       #1a5c38;
+  --felt-dark:  #0f3d26;
+  --felt-mid:   #1f6e44;
+  --bg:         #0c1f14;
+  --surface:    #0e2718;
+  --card:       #152e1c;
+  --card2:      #1b3a24;
+  --border:     #2a5038;
+  --gold:       #e8b84b;
+  --gold-light: #f5d07a;
+  --gold-dark:  #c9952a;
+  --orange:     #e07c28;
+  --danger:     #e84040;
+  --success:    #3dbf6e;
+  --t1:         #4db8e8;
+  --t1-bg:      rgba(77,184,232,.12);
+  --t2:         #e87676;
+  --t2-bg:      rgba(232,118,118,.12);
+  --text:       #e8e4d8;
+  --muted:      #7fa48a;
+  --muted2:     #4a7060;
+  --ivory:      #f7f3e6;
+  --pip:        #1a1a1a;
+  --pip-count:  #cc2222;
+  --wood:       #8b6f42;
+  --radius:     10px;
+  --radius-sm:  6px;
+  --radius-lg:  16px;
+  --shadow:     0 8px 32px rgba(0,0,0,.55);
+  --shadow-sm:  0 2px 8px rgba(0,0,0,.35);
+  --trans:      .15s ease;
+}
 
-    :root {
-      --bg:          #0d3b2e;
-      --felt:        #145a3a;
-      --surface:     #0a2a1f;
-      --card:        #1a4f38;
-      --accent:      #f5c518;
-      --accent2:     #e06c1e;
-      --danger:      #e94560;
-      --text:        #f0ede4;
-      --muted:       #8aad9a;
-      --domino-bg:   #f5f0e4;
-      --domino-pip:  #1a1a1a;
-      --dom-border:  #7a6830;
-      --t1:          #4fc3f7;
-      --t2:          #ef9a9a;
-      --radius:      8px;
-      --shadow:      0 4px 20px rgba(0,0,0,.45);
-    }
+/* =====================================================================
+   RESET
+===================================================================== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden}
+body{
+  font-family:'Inter',system-ui,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  font-size:14px;
+  line-height:1.5;
+}
+img{display:block;max-width:100%}
+button{font-family:inherit;cursor:pointer}
 
-    body {
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-    }
+/* =====================================================================
+   SCROLLBARS
+===================================================================== */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 
-    /* ================================================================
-       UTILITY
-       ================================================================ */
-    .hidden { display: none !important; }
-    .btn {
-      padding: .55rem 1.3rem;
-      border: none;
-      border-radius: var(--radius);
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: filter .15s, transform .1s;
-    }
-    .btn:hover  { filter: brightness(1.15); }
-    .btn:active { transform: scale(.96); }
-    .btn-primary { background: var(--accent); color: #1a1a1a; }
-    .btn-secondary { background: var(--card); color: var(--text); border: 1px solid var(--muted); }
-    .btn-danger { background: var(--danger); color: #fff; }
+/* =====================================================================
+   UTILITY
+===================================================================== */
+.hidden{display:none!important}
+.flex{display:flex}
+.flex-col{display:flex;flex-direction:column}
+.items-center{align-items:center}
+.justify-center{justify-content:center}
+.gap-1{gap:.3rem}
+.gap-2{gap:.5rem}
+.gap-3{gap:.75rem}
+.gap-4{gap:1rem}
+.w-full{width:100%}
+.text-center{text-align:center}
+.text-muted{color:var(--muted)}
+.text-gold{color:var(--gold)}
+.text-t1{color:var(--t1)}
+.text-t2{color:var(--t2)}
+.font-bold{font-weight:700}
+.font-semi{font-weight:600}
+.text-sm{font-size:.8rem}
+.text-xs{font-size:.72rem}
+.text-lg{font-size:1.1rem}
+.text-xl{font-size:1.35rem}
+.uppercase{text-transform:uppercase;letter-spacing:.06em}
+.rounded{border-radius:var(--radius)}
+.overflow-hidden{overflow:hidden}
+.relative{position:relative}
+.absolute{position:absolute}
+.inset-0{inset:0}
+.z-10{z-index:10}
+.z-20{z-index:20}
+.z-50{z-index:50}
+.pointer{cursor:pointer}
 
-    input[type=text], input[type=number], select {
-      background: var(--surface);
-      border: 1px solid var(--muted);
-      border-radius: var(--radius);
-      color: var(--text);
-      padding: .5rem .8rem;
-      font-size: 1rem;
-      width: 100%;
-      outline: none;
-    }
-    input:focus, select:focus { border-color: var(--accent); }
+/* =====================================================================
+   BUTTONS
+===================================================================== */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:.6rem 1.4rem;border:none;border-radius:var(--radius);
+  font-size:.9rem;font-weight:600;letter-spacing:.01em;
+  transition:filter var(--trans),transform var(--trans),box-shadow var(--trans);
+  white-space:nowrap;
+}
+.btn:hover{filter:brightness(1.1)}
+.btn:active{transform:scale(.96)}
+.btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:#1a1100;box-shadow:0 2px 8px rgba(232,184,75,.3)}
+.btn-gold:hover{box-shadow:0 4px 16px rgba(232,184,75,.45)}
+.btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text)}
+.btn-outline:hover{border-color:var(--muted);background:var(--card)}
+.btn-ghost{background:transparent;color:var(--muted);padding:.4rem .8rem}
+.btn-ghost:hover{color:var(--text)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-success{background:var(--success);color:#fff}
+.btn-sm{padding:.4rem .9rem;font-size:.8rem}
+.btn-lg{padding:.8rem 2rem;font-size:1rem}
+.btn-icon{padding:.5rem;width:36px;height:36px;font-size:1rem;border-radius:50%}
 
-    label { font-size: .85rem; color: var(--muted); margin-bottom: .25rem; display: block; }
+/* =====================================================================
+   FORM ELEMENTS
+===================================================================== */
+.field{display:flex;flex-direction:column;gap:.3rem}
+.label{font-size:.75rem;font-weight:600;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
+.input{
+  background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);
+  color:var(--text);padding:.65rem .9rem;font-size:.95rem;font-family:inherit;
+  transition:border-color var(--trans);outline:none;width:100%;
+}
+.input:focus{border-color:var(--gold)}
+.input::placeholder{color:var(--muted2)}
+.select-group{
+  display:flex;gap:.4rem;flex-wrap:wrap;
+}
+.select-pill{
+  padding:.45rem .9rem;border-radius:20px;border:1.5px solid var(--border);
+  background:var(--card);color:var(--muted);font-size:.82rem;font-weight:600;
+  cursor:pointer;transition:all var(--trans);
+}
+.select-pill.active{border-color:var(--gold);background:rgba(232,184,75,.12);color:var(--gold)}
 
-    /* ================================================================
-       SCREEN WRAPPER
-       ================================================================ */
-    .screen {
-      width: 100vw;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 1rem;
-    }
+/* =====================================================================
+   CARDS / PANELS
+===================================================================== */
+.panel{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:2rem 1.75rem;
+  box-shadow:var(--shadow);
+}
+.panel-sm{padding:1.25rem 1.25rem}
 
-    /* ================================================================
-       LOBBY SCREEN
-       ================================================================ */
-    #screen-lobby .card {
-      background: var(--surface);
-      border: 1px solid var(--card);
-      border-radius: 12px;
-      padding: 2.5rem 2rem;
-      width: 100%;
-      max-width: 420px;
-      box-shadow: var(--shadow);
-    }
-    #screen-lobby h1 {
-      font-size: 2.5rem;
-      text-align: center;
-      color: var(--accent);
-      margin-bottom: .25rem;
-      letter-spacing: 2px;
-    }
-    #screen-lobby .subtitle {
-      text-align: center;
-      color: var(--muted);
-      margin-bottom: 1.5rem;
-      font-size: .9rem;
-    }
-    .form-group { margin-bottom: 1rem; }
-    .divider {
-      display: flex;
-      align-items: center;
-      gap: .75rem;
-      margin: 1.2rem 0;
-      color: var(--muted);
-      font-size: .85rem;
-    }
-    .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--card);
-    }
+/* =====================================================================
+   DIVIDER
+===================================================================== */
+.divider{
+  display:flex;align-items:center;gap:.75rem;
+  color:var(--muted2);font-size:.8rem;margin:.5rem 0;
+}
+.divider::before,.divider::after{
+  content:'';flex:1;height:1px;background:var(--border);
+}
 
-    /* ================================================================
-       WAITING SCREEN
-       ================================================================ */
-    #screen-waiting .card {
-      background: var(--surface);
-      border: 1px solid var(--card);
-      border-radius: 12px;
-      padding: 2rem 1.5rem;
-      width: 100%;
-      max-width: 440px;
-      text-align: center;
-      box-shadow: var(--shadow);
-    }
-    #screen-waiting h2 { color: var(--accent); margin-bottom: .5rem; }
-    .room-code {
-      font-size: 2rem;
-      font-weight: 700;
-      letter-spacing: .3em;
-      color: var(--accent);
-      background: var(--card);
-      border-radius: var(--radius);
-      padding: .4rem 1rem;
-      display: inline-block;
-      margin: .75rem 0;
-      cursor: pointer;
-    }
-    .room-code:hover::after { content: ' (copied!)'; font-size: .8rem; color: var(--muted); }
-    .player-slots {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: .5rem;
-      margin: 1rem 0;
-    }
-    .player-slot {
-      background: var(--card);
-      border-radius: var(--radius);
-      padding: .6rem;
-      font-size: .9rem;
-      border: 1px solid transparent;
-    }
-    .player-slot.filled   { border-color: var(--accent); color: var(--text); }
-    .player-slot.empty    { color: var(--muted); border-color: var(--surface); border-style: dashed; }
-    .player-slot.you      { border-color: var(--t1); }
-    .team-tag {
-      font-size: .7rem;
-      opacity: .7;
-      margin-left: .3rem;
-    }
+/* =====================================================================
+   BADGE / CHIP
+===================================================================== */
+.chip{
+  display:inline-flex;align-items:center;gap:.3rem;
+  background:var(--card2);border:1px solid var(--border);
+  border-radius:20px;padding:.2rem .65rem;font-size:.78rem;font-weight:600;
+}
+.chip-gold{background:rgba(232,184,75,.12);border-color:rgba(232,184,75,.35);color:var(--gold)}
+.chip-t1{background:var(--t1-bg);border-color:rgba(77,184,232,.3);color:var(--t1)}
+.chip-t2{background:var(--t2-bg);border-color:rgba(232,118,118,.3);color:var(--t2)}
+.chip-trump{background:rgba(224,124,40,.15);border-color:rgba(224,124,40,.4);color:var(--orange)}
 
-    /* ================================================================
-       GAME SCREEN – overall layout
-       ================================================================ */
-    #screen-game {
-      width: 100vw;
-      height: 100vh;
-      display: grid;
-      grid-template-rows: auto 1fr auto auto;
-      grid-template-columns: 1fr;
-      overflow: hidden;
-      padding: 0;
-    }
+/* =====================================================================
+   SCREENS
+===================================================================== */
+.screen{
+  position:fixed;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;padding:1rem;
+  overflow-y:auto;z-index:1;
+}
 
-    /* ---- header ---- */
-    #game-header {
-      background: var(--surface);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: .5rem;
-      padding: .5rem 1rem;
-      border-bottom: 1px solid var(--card);
-      font-size: .9rem;
-    }
-    #game-header .hgroup { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
-    .badge {
-      background: var(--card);
-      border-radius: 20px;
-      padding: .2rem .7rem;
-      font-size: .82rem;
-      white-space: nowrap;
-    }
-    .badge.trump-badge { background: var(--accent2); color: #fff; }
-    .score-badge { display: flex; gap: .4rem; align-items: center; }
-    .score-t1 { color: var(--t1); font-weight: 700; }
-    .score-t2 { color: var(--t2); font-weight: 700; }
+/* =====================================================================
+   LOBBY SCREEN
+===================================================================== */
+#screen-lobby{
+  background:radial-gradient(ellipse at 50% 30%, #1e4f32 0%, #0c1f14 70%);
+}
+.lobby-wrap{width:100%;max-width:420px}
+.game-logo{
+  font-family:'Playfair Display',serif;
+  font-size:4.5rem;font-weight:900;
+  color:var(--gold);
+  text-shadow:0 0 40px rgba(232,184,75,.4),0 4px 12px rgba(0,0,0,.5);
+  line-height:1;text-align:center;letter-spacing:-.02em;
+}
+.game-tagline{
+  text-align:center;color:var(--muted);font-size:.88rem;margin:.4rem 0 2rem;
+  letter-spacing:.05em;text-transform:uppercase;
+}
+.tab-row{display:flex;background:var(--card);border-radius:var(--radius);padding:.25rem;gap:.25rem;margin-bottom:1.25rem}
+.tab-btn{
+  flex:1;padding:.5rem;border:none;border-radius:7px;font-size:.85rem;font-weight:600;
+  background:transparent;color:var(--muted);transition:all var(--trans);
+}
+.tab-btn.active{background:var(--card2);color:var(--text);box-shadow:var(--shadow-sm)}
+.lobby-panel{animation:fadeUp .25s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.mode-info{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  padding:.8rem;margin-top:.5rem;font-size:.8rem;color:var(--muted);line-height:1.55;
+}
+.mode-info strong{color:var(--gold);font-weight:600}
 
-    /* ---- main board ---- */
-    #game-board {
-      display: grid;
-      grid-template-areas:
-        ".       north    ."
-        "west    center   east"
-        ".       south    .";
-      grid-template-columns: 90px 1fr 90px;
-      grid-template-rows:    90px 1fr 90px;
-      background: var(--felt);
-      position: relative;
-      overflow: hidden;
-    }
+/* Invite Join override */
+#screen-invite{
+  background:radial-gradient(ellipse at 50% 30%, #1e4f32 0%, #0c1f14 70%);
+}
+.invite-room-badge{
+  background:var(--card2);border:2px solid var(--gold);border-radius:var(--radius);
+  padding:.7rem 1.4rem;text-align:center;margin:.75rem 0;
+}
+.invite-room-code{
+  font-family:'Playfair Display',serif;font-size:2.2rem;font-weight:700;
+  color:var(--gold);letter-spacing:.2em;
+}
 
-    .player-zone {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: .3rem;
-    }
-    .player-zone.north  { grid-area: north; }
-    .player-zone.south  { grid-area: south; }
-    .player-zone.west   { grid-area: west;  }
-    .player-zone.east   { grid-area: east;  }
+/* =====================================================================
+   WAITING SCREEN
+===================================================================== */
+#screen-waiting{
+  background:radial-gradient(ellipse at 50% 30%, #1e4f32 0%, #0c1f14 70%);
+}
+.waiting-wrap{width:100%;max-width:480px}
+.room-code-display{
+  font-family:'Playfair Display',serif;
+  font-size:2.5rem;font-weight:700;color:var(--gold);
+  letter-spacing:.25em;cursor:pointer;
+  transition:opacity var(--trans);
+}
+.room-code-display:hover{opacity:.8}
+.copy-hint{font-size:.72rem;color:var(--muted2);margin-top:.15rem}
+.invite-url-row{
+  display:flex;gap:.4rem;align-items:center;margin-top:.75rem;
+}
+.invite-url-input{
+  flex:1;font-size:.78rem;padding:.5rem .7rem;
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);
+  color:var(--muted);outline:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.player-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin:1.25rem 0;
+}
+.player-seat{
+  background:var(--card);border:1.5px solid var(--border);border-radius:var(--radius);
+  padding:.8rem;display:flex;align-items:center;gap:.6rem;
+  transition:border-color var(--trans),background var(--trans);
+}
+.player-seat.filled{border-color:var(--border)}
+.player-seat.filled-you{border-color:var(--gold);background:rgba(232,184,75,.06)}
+.player-seat.filled-t1{border-color:var(--t1);background:var(--t1-bg)}
+.player-seat.filled-t2{border-color:var(--t2);background:var(--t2-bg)}
+.player-seat.empty{border-style:dashed;opacity:.55}
+.seat-avatar{
+  width:32px;height:32px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:.85rem;flex-shrink:0;
+}
+.avatar-t1{background:rgba(77,184,232,.2);color:var(--t1)}
+.avatar-t2{background:rgba(232,118,118,.2);color:var(--t2)}
+.avatar-empty{background:var(--border);color:var(--muted2)}
+.seat-info{flex:1;min-width:0}
+.seat-name{font-weight:600;font-size:.88rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seat-team{font-size:.72rem;color:var(--muted);margin-top:.05rem}
+.teams-legend{
+  text-align:center;font-size:.78rem;color:var(--muted);
+  padding:.6rem;background:var(--card);border-radius:var(--radius-sm);
+}
 
-    .pz-name {
-      font-size: .78rem;
-      font-weight: 600;
-      background: rgba(0,0,0,.35);
-      border-radius: 20px;
-      padding: .15rem .55rem;
-      white-space: nowrap;
-      max-width: 80px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .pz-name.you  { color: var(--accent); }
-    .pz-name.partner { color: var(--t1); }
-    .pz-name.opp  { color: var(--t2); }
-    .pz-count {
-      font-size: .7rem;
-      color: var(--muted);
-    }
-    .pz-played { margin-top: .15rem; }
+/* =====================================================================
+   GAME SCREEN LAYOUT
+===================================================================== */
+#screen-game{
+  position:fixed;inset:0;display:grid;
+  grid-template-rows:auto 1fr auto auto;
+  grid-template-columns:1fr;
+  overflow:hidden;padding:0;align-items:stretch;justify-items:stretch;
+  background:var(--felt);
+}
 
-    /* ---- trick center ---- */
-    #trick-center {
-      grid-area: center;
-      display: grid;
-      grid-template-areas:
-        ".    n-dom  ."
-        "w-dom .   e-dom"
-        ".    s-dom  .";
-      grid-template-columns: 1fr auto 1fr;
-      grid-template-rows:    1fr auto 1fr;
-      align-items: center;
-      justify-items: center;
-    }
-    #trick-center .tc-slot { display: flex; align-items: center; justify-content: center; }
-    #tc-north { grid-area: n-dom; }
-    #tc-west  { grid-area: w-dom; }
-    #tc-east  { grid-area: e-dom; }
-    #tc-south { grid-area: s-dom; }
+/* ---- HEADER ---- */
+#game-header{
+  background:rgba(12,31,20,.92);
+  backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  gap:.4rem;padding:.45rem .75rem;
+  z-index:20;position:relative;
+}
+.hdr-group{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+.hdr-title{
+  font-family:'Playfair Display',serif;font-weight:700;
+  font-size:1.15rem;color:var(--gold);letter-spacing:.01em;margin-right:.2rem;
+}
 
-    /* ---- status bar ---- */
-    #game-status {
-      background: var(--surface);
-      border-top: 1px solid var(--card);
-      border-bottom: 1px solid var(--card);
-      padding: .4rem 1rem;
-      font-size: .9rem;
-      text-align: center;
-      min-height: 2.2rem;
-    }
-    #status-text { color: var(--accent); font-weight: 600; }
+/* Scores in header */
+.score-block{
+  display:flex;align-items:center;gap:.5rem;
+  background:var(--card);border-radius:var(--radius-sm);
+  padding:.25rem .65rem;
+}
+.score-team-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.score-val{font-size:1rem;font-weight:800;line-height:1}
+.score-total{font-size:.72rem;color:var(--muted);margin-top:.05rem}
+.score-sep{color:var(--muted2);font-size:.75rem;padding:0 .1rem}
 
-    /* ---- your hand ---- */
-    #hand-area {
-      background: var(--surface);
-      padding: .6rem .5rem .7rem;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: .4rem;
-    }
-    #hand-label {
-      font-size: .75rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: .1em;
-    }
-    #hand-dominoes {
-      display: flex;
-      gap: .45rem;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
+/* ---- BOARD ---- */
+#game-board{
+  display:grid;
+  grid-template-areas:
+    ". north ."
+    "west center east"
+    ". south .";
+  grid-template-columns:minmax(80px,100px) 1fr minmax(80px,100px);
+  grid-template-rows:minmax(80px,110px) 1fr minmax(80px,110px);
+  background:var(--felt);
+  position:relative;overflow:hidden;
+}
+/* subtle felt texture */
+#game-board::before{
+  content:'';position:absolute;inset:0;
+  background:
+    radial-gradient(circle at 20% 20%,rgba(0,0,0,.15) 0%,transparent 60%),
+    radial-gradient(circle at 80% 80%,rgba(0,0,0,.15) 0%,transparent 60%);
+  pointer-events:none;
+}
 
-    /* ================================================================
-       DOMINO TILES
-       ================================================================ */
-    .domino {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-evenly;
-      background: var(--domino-bg);
-      border: 2px solid var(--dom-border);
-      border-radius: 6px;
-      color: var(--domino-pip);
-      font-weight: 700;
-      cursor: default;
-      user-select: none;
-      box-shadow: 0 2px 6px rgba(0,0,0,.4);
-      position: relative;
-    }
+/* ---- PLAYER ZONES ---- */
+.pzone{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.3rem;padding:.4rem;position:relative;z-index:1;
+}
+.pzone-north{grid-area:north}
+.pzone-south{grid-area:south}
+.pzone-west{grid-area:west}
+.pzone-east{grid-area:east}
 
-    /* Size variants */
-    .domino-sm {
-      width: 52px;
-      height: 26px;
-      font-size: .85rem;
-      gap: 0;
-      border-radius: 4px;
-    }
-    .domino-sm .dom-divider { width: 1px; height: 16px; background: var(--dom-border); }
-    .domino-sm .dom-half    { flex: 1; text-align: center; }
+.pzone-name{
+  font-size:.78rem;font-weight:700;
+  background:rgba(12,31,20,.75);
+  border:1px solid var(--border);
+  border-radius:20px;padding:.2rem .6rem;
+  max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  transition:border-color var(--trans),color var(--trans);
+}
+.pzone-name.you{border-color:var(--gold);color:var(--gold)}
+.pzone-name.partner{border-color:var(--t1);color:var(--t1)}
+.pzone-name.opp{border-color:var(--t2);color:var(--t2)}
+.pzone-tiles{
+  display:flex;align-items:center;gap:.2rem;
+  font-size:.72rem;color:var(--muted);
+}
+.tile-count-badge{
+  background:rgba(12,31,20,.7);border:1px solid var(--border);
+  border-radius:20px;padding:.1rem .45rem;font-size:.7rem;font-weight:600;
+}
+.pzone-played{min-height:28px;display:flex;align-items:center;justify-content:center}
+.turn-indicator{
+  width:8px;height:8px;border-radius:50%;background:var(--gold);
+  animation:pulse 1.2s ease infinite;
+}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.7)}}
 
-    .domino-md {
-      width: 66px;
-      height: 33px;
-      font-size: 1rem;
-    }
-    .domino-md .dom-divider { width: 1px; height: 20px; background: var(--dom-border); }
-    .domino-md .dom-half    { flex: 1; text-align: center; }
+/* ---- TRICK CENTER ---- */
+#trick-center{
+  grid-area:center;
+  display:grid;
+  grid-template-areas:
+    ". n-slot ."
+    "w-slot mid e-slot"
+    ". s-slot .";
+  grid-template-columns:1fr auto 1fr;
+  grid-template-rows:1fr auto 1fr;
+  align-items:center;justify-items:center;
+  position:relative;z-index:1;
+}
+#tc-north{grid-area:n-slot}
+#tc-west{grid-area:w-slot}
+#tc-east{grid-area:e-slot}
+#tc-south{grid-area:s-slot}
+#tc-mid{
+  grid-area:mid;
+  width:60px;height:60px;
+  border-radius:50%;
+  background:rgba(12,31,20,.5);
+  border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.72rem;color:var(--muted);font-weight:600;
+}
+.tc-slot{display:flex;align-items:center;justify-content:center;padding:.35rem}
 
-    .domino-lg {
-      width: 84px;
-      height: 42px;
-      font-size: 1.2rem;
-    }
-    .domino-lg .dom-divider { width: 2px; height: 26px; background: var(--dom-border); }
-    .domino-lg .dom-half    { flex: 1; text-align: center; }
+/* ---- STATUS BAR ---- */
+#game-status{
+  background:rgba(10,23,16,.9);
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  padding:.4rem 1rem;text-align:center;min-height:2.1rem;
+  font-size:.85rem;position:relative;z-index:2;
+}
+#status-msg{color:var(--gold);font-weight:600}
 
-    /* playable (your turn) */
-    .domino-playable {
-      cursor: pointer;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--accent), 0 2px 8px rgba(245,197,24,.45);
-    }
-    .domino-playable:hover {
-      transform: translateY(-4px) scale(1.08);
-      box-shadow: 0 0 0 3px var(--accent), 0 6px 16px rgba(245,197,24,.5);
-      z-index: 5;
-    }
-    .domino-played { opacity: .88; cursor: default; }
+/* ---- HAND AREA ---- */
+#hand-area{
+  background:rgba(10,23,16,.95);
+  border-top:1px solid var(--border);
+  padding:.6rem .5rem .65rem;
+  display:flex;flex-direction:column;align-items:center;gap:.4rem;
+  z-index:2;position:relative;
+}
+#hand-label{
+  font-size:.7rem;font-weight:700;color:var(--muted2);
+  text-transform:uppercase;letter-spacing:.08em;
+}
+#hand-dominoes{
+  display:flex;gap:.4rem;flex-wrap:wrap;justify-content:center;align-items:flex-end;
+}
 
-    /* trump indicator */
-    .domino-trump { border-color: var(--accent2); }
+/* =====================================================================
+   DOMINO TILES (pip-dot rendering)
+===================================================================== */
+.domino{
+  display:flex;flex-direction:row;align-items:stretch;
+  background:var(--ivory);border:2px solid var(--wood);
+  border-radius:8px;box-shadow:var(--shadow-sm);
+  overflow:hidden;position:relative;flex-shrink:0;
+  transition:transform var(--trans),box-shadow var(--trans),border-color var(--trans),filter var(--trans);
+}
+.domino-half{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  padding:3px;
+}
+.domino-divider{
+  width:2px;background:var(--wood);align-self:stretch;flex-shrink:0;
+}
+.pip-grid{
+  display:grid;grid-template-columns:1fr 1fr 1fr;
+  grid-template-rows:1fr 1fr 1fr;gap:1px;width:100%;height:100%;
+}
+.pip-cell{display:flex;align-items:center;justify-content:center}
+.pip{
+  border-radius:50%;background:var(--pip);
+  transition:background var(--trans);
+}
+.pip-count{background:var(--pip-count)}
 
-    /* ================================================================
-       MODALS
-       ================================================================ */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,.65);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-      padding: 1rem;
-    }
-    .modal-box {
-      background: var(--surface);
-      border: 1px solid var(--card);
-      border-radius: 12px;
-      padding: 2rem 1.75rem;
-      max-width: 460px;
-      width: 100%;
-      box-shadow: var(--shadow);
-    }
-    .modal-box h3 { margin-bottom: 1rem; color: var(--accent); font-size: 1.25rem; }
-    .modal-row { display: flex; gap: .6rem; align-items: flex-end; flex-wrap: wrap; margin-top: .75rem; }
+/* Size variants */
+.domino-xs .domino-half{width:18px;height:18px;padding:2px}
+.domino-xs .pip{width:4px;height:4px}
+.domino-xs{border-width:1.5px;border-radius:5px}
+.domino-xs .domino-divider{width:1.5px}
 
-    /* bid modal */
-    .bid-preset-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: .4rem;
-      margin-bottom: .75rem;
-    }
-    .bid-btn {
-      background: var(--card);
-      border: 2px solid transparent;
-      border-radius: var(--radius);
-      color: var(--text);
-      padding: .45rem 0;
-      font-size: .9rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: border-color .15s, background .15s;
-      text-align: center;
-    }
-    .bid-btn:hover { border-color: var(--muted); }
-    .bid-btn.selected  { border-color: var(--accent); background: rgba(245,197,24,.12); }
-    .bid-btn.special   { color: var(--accent2); }
-    .bid-btn.pass-btn  { color: var(--muted); }
+.domino-sm .domino-half{width:24px;height:24px;padding:2px}
+.domino-sm .pip{width:5px;height:5px}
+.domino-sm{border-radius:6px}
+.domino-sm .domino-divider{width:1.5px}
 
-    /* trump modal */
-    .trump-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: .5rem;
-      margin-top: .75rem;
-    }
-    .trump-btn {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      background: var(--card);
-      border: 2px solid transparent;
-      border-radius: var(--radius);
-      padding: .6rem .3rem;
-      cursor: pointer;
-      transition: border-color .15s;
-    }
-    .trump-btn:hover { border-color: var(--muted); }
-    .trump-btn.selected { border-color: var(--accent); }
-    .trump-btn .trump-num  { font-size: 1.3rem; font-weight: 700; color: var(--text); }
-    .trump-btn .trump-name { font-size: .68rem; color: var(--muted); margin-top: .2rem; }
+.domino-md .domino-half{width:34px;height:34px;padding:3px}
+.domino-md .pip{width:7px;height:7px}
 
-    /* hand-result modal */
-    .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin: 1rem 0; }
-    .result-cell { background: var(--card); border-radius: var(--radius); padding: .75rem; text-align: center; }
-    .result-cell .rc-label { font-size: .75rem; color: var(--muted); }
-    .result-cell .rc-val   { font-size: 1.5rem; font-weight: 700; margin-top: .1rem; }
-    .result-cell.winner-cell { border: 2px solid var(--accent); }
-    .made-badge {
-      font-size: .95rem;
-      font-weight: 700;
-      border-radius: 20px;
-      padding: .3rem .9rem;
-      display: inline-block;
-      margin-bottom: .75rem;
-    }
-    .made-badge.made     { background: rgba(100,200,100,.2); color: #8fff8f; border: 1px solid #5caa5c; }
-    .made-badge.set      { background: rgba(200,50,50,.2);   color: #ff9f9f; border: 1px solid #a04040; }
+.domino-lg .domino-half{width:44px;height:44px;padding:4px}
+.domino-lg .pip{width:9px;height:9px}
 
-    /* ================================================================
-       GAME OVER SCREEN
-       ================================================================ */
-    #screen-gameover .card {
-      background: var(--surface);
-      border: 1px solid var(--card);
-      border-radius: 12px;
-      padding: 2.5rem 2rem;
-      max-width: 400px;
-      width: 100%;
-      text-align: center;
-      box-shadow: var(--shadow);
-    }
-    #screen-gameover h2 { color: var(--accent); font-size: 2rem; margin-bottom: .5rem; }
-    .winner-announcement {
-      font-size: 1.3rem;
-      font-weight: 700;
-      padding: 1rem;
-      border-radius: var(--radius);
-      margin: 1rem 0;
-    }
-    .wa-t1 { background: rgba(79,195,247,.15); color: var(--t1); border: 1px solid var(--t1); }
-    .wa-t2 { background: rgba(239,154,154,.15); color: var(--t2); border: 1px solid var(--t2); }
-    .final-scores { display: flex; justify-content: center; gap: 1.5rem; margin: 1rem 0; }
-    .fs-team { text-align: center; }
-    .fs-label { font-size: .8rem; color: var(--muted); }
-    .fs-marks { font-size: 2.5rem; font-weight: 700; }
+.domino-xl .domino-half{width:56px;height:56px;padding:5px}
+.domino-xl .pip{width:11px;height:11px}
+.domino-xl{border-radius:10px}
 
-    /* ================================================================
-       NOTIFICATION TOAST
-       ================================================================ */
-    #toast-container {
-      position: fixed;
-      top: 1rem;
-      right: 1rem;
-      z-index: 200;
-      display: flex;
-      flex-direction: column;
-      gap: .4rem;
-      pointer-events: none;
-    }
-    .toast {
-      background: var(--surface);
-      border: 1px solid var(--card);
-      border-left: 4px solid var(--accent);
-      border-radius: var(--radius);
-      padding: .6rem 1rem;
-      font-size: .88rem;
-      max-width: 280px;
-      box-shadow: var(--shadow);
-      animation: slideIn .2s ease;
-    }
-    .toast.toast-error { border-left-color: var(--danger); }
-    .toast.toast-info  { border-left-color: var(--muted); }
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateX(20px); }
-      to   { opacity: 1; transform: translateX(0); }
-    }
-    @keyframes fadeOut {
-      to { opacity: 0; transform: translateX(20px); }
-    }
+/* Count domino (5-count tile) */
+.domino-count{border-color:#cc2222;box-shadow:0 0 0 1px rgba(204,34,34,.4),var(--shadow-sm)}
+.domino-count .pip{background:var(--pip-count)}
 
-    /* ================================================================
-       MARKS DISPLAY
-       ================================================================ */
-    .marks-row { display: flex; gap: .2rem; }
-    .mark-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: var(--muted);
-      border: 1px solid transparent;
-    }
-    .mark-dot.filled-t1 { background: var(--t1); }
-    .mark-dot.filled-t2 { background: var(--t2); }
+/* Playable highlight */
+.domino-playable{
+  border-color:var(--gold);cursor:pointer;
+  box-shadow:0 0 0 2.5px var(--gold),0 4px 14px rgba(232,184,75,.4);
+}
+.domino-playable:hover{
+  transform:translateY(-8px) scale(1.06);
+  box-shadow:0 0 0 3px var(--gold),0 10px 24px rgba(232,184,75,.55);
+  z-index:5;
+}
 
-    /* ================================================================
-       RESPONSIVE
-       ================================================================ */
-    @media (max-width: 500px) {
-      .domino-lg { width: 68px; height: 34px; font-size: 1rem; }
-      .domino-md { width: 54px; height: 27px; font-size: .85rem; }
-    }
-  </style>
+/* Invalid/greyed out */
+.domino-invalid{opacity:.35;filter:grayscale(.5);cursor:not-allowed}
+
+/* Played in trick */
+.domino-in-trick{
+  animation:domDrop .25s ease;
+}
+@keyframes domDrop{from{transform:scale(.85);opacity:.4}to{transform:scale(1);opacity:1}}
+
+/* =====================================================================
+   PROGRESS BAR (250-point race)
+===================================================================== */
+.score-race{
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:.4rem;margin:.5rem 0;
+}
+.progress-track{
+  height:8px;background:var(--card2);border-radius:4px;overflow:hidden;
+  position:relative;
+}
+.progress-fill{
+  height:100%;border-radius:4px;
+  transition:width .4s ease;
+}
+.progress-t1{background:linear-gradient(90deg,var(--t1),#6acef5)}
+.progress-t2{background:linear-gradient(90deg,#f08080,var(--t2))}
+.score-race-goal{font-size:.72rem;color:var(--muted);text-align:center;white-space:nowrap}
+
+/* =====================================================================
+   MODALS
+===================================================================== */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.7);
+  display:flex;align-items:center;justify-content:center;
+  z-index:100;padding:1rem;
+  animation:fadeIn .15s ease;
+}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal-box{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:1.75rem;
+  max-width:460px;width:100%;box-shadow:var(--shadow);
+  animation:slideUp .2s ease;
+}
+@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.modal-box h3{font-size:1.2rem;font-weight:700;color:var(--gold);margin-bottom:.25rem}
+.modal-box p{font-size:.85rem;color:var(--muted);margin-bottom:.75rem}
+
+/* Bid presets */
+.bid-grid{
+  display:grid;grid-template-columns:repeat(5,1fr);gap:.35rem;margin:.75rem 0;
+}
+.bid-tile{
+  background:var(--card);border:1.5px solid var(--border);
+  border-radius:var(--radius-sm);padding:.5rem .25rem;
+  text-align:center;font-size:.85rem;font-weight:600;cursor:pointer;
+  transition:all var(--trans);
+}
+.bid-tile:hover{border-color:var(--muted);background:var(--card2)}
+.bid-tile.sel{border-color:var(--gold);background:rgba(232,184,75,.12);color:var(--gold)}
+.bid-tile.special{color:var(--orange)}
+.bid-tile.pass{color:var(--muted);font-size:.8rem}
+.bid-tile.disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+
+/* Marks input row */
+.marks-row{display:flex;align-items:center;gap:.6rem;margin:.5rem 0}
+.marks-row label{font-size:.8rem;color:var(--muted);white-space:nowrap}
+.marks-input{width:64px;text-align:center}
+
+/* Trump grid */
+.trump-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin:.75rem 0;
+}
+.trump-tile{
+  background:var(--card);border:1.5px solid var(--border);
+  border-radius:var(--radius);padding:.7rem .3rem;
+  display:flex;flex-direction:column;align-items:center;gap:.25rem;
+  cursor:pointer;transition:all var(--trans);
+}
+.trump-tile:hover{border-color:var(--muted)}
+.trump-tile.sel{border-color:var(--gold);background:rgba(232,184,75,.1)}
+.trump-num{font-size:1.6rem;font-weight:800;color:var(--text);line-height:1}
+.trump-name{font-size:.68rem;color:var(--muted);text-align:center}
+
+/* Hand result */
+.result-scores{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin:.75rem 0}
+.result-cell{
+  background:var(--card);border:1.5px solid var(--border);
+  border-radius:var(--radius);padding:.9rem;text-align:center;
+}
+.result-cell.winner{border-color:var(--gold)}
+.rc-team{font-size:.72rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.rc-pts{font-size:1.8rem;font-weight:800;margin:.2rem 0}
+.rc-gained{font-size:.78rem}
+.made-badge{
+  display:inline-block;border-radius:20px;padding:.3rem .9rem;
+  font-size:.9rem;font-weight:700;margin:.5rem 0;
+}
+.badge-made{background:rgba(61,191,110,.15);color:#3dbf6e;border:1px solid rgba(61,191,110,.3)}
+.badge-set{background:rgba(232,64,64,.15);color:#e84040;border:1px solid rgba(232,64,64,.3)}
+
+/* =====================================================================
+   GAME OVER SCREEN
+===================================================================== */
+#screen-gameover{
+  background:radial-gradient(ellipse at 50% 0%, #1e4f32 0%, #0c1f14 70%);
+}
+.gameover-wrap{width:100%;max-width:420px}
+.gameover-trophy{font-size:4rem;text-align:center;margin-bottom:.5rem;animation:bounce .6s ease}
+@keyframes bounce{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+.gameover-headline{
+  font-family:'Playfair Display',serif;font-size:2rem;font-weight:900;
+  text-align:center;margin-bottom:.25rem;
+}
+.final-scores-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin:1rem 0}
+.final-cell{
+  background:var(--card);border:1.5px solid var(--border);
+  border-radius:var(--radius-lg);padding:1.25rem;text-align:center;
+}
+.final-cell.winner{
+  border-color:var(--gold);
+  background:linear-gradient(135deg,rgba(232,184,75,.1),rgba(232,184,75,.04));
+}
+.final-pts{font-size:2.5rem;font-weight:900}
+.final-marks{font-size:.9rem;color:var(--muted);margin-top:.15rem}
+
+/* =====================================================================
+   SPECTATOR BANNER
+===================================================================== */
+.spectator-bar{
+  position:fixed;top:0;left:0;right:0;z-index:30;
+  background:rgba(224,124,40,.9);
+  text-align:center;padding:.35rem 1rem;font-size:.82rem;font-weight:600;
+  letter-spacing:.03em;
+}
+
+/* =====================================================================
+   CHAT PANEL
+===================================================================== */
+#chat-panel{
+  position:fixed;right:0;top:0;bottom:0;width:280px;
+  background:rgba(10,23,16,.97);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;z-index:50;
+  transform:translateX(100%);transition:transform .25s ease;
+}
+#chat-panel.open{transform:translateX(0)}
+.chat-header{
+  padding:.75rem 1rem;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
+.chat-header-title{font-weight:700;font-size:.9rem;color:var(--text)}
+#chat-messages{
+  flex:1;overflow-y:auto;padding:.5rem .75rem;
+  display:flex;flex-direction:column;gap:.35rem;
+}
+.chat-msg{
+  display:flex;flex-direction:column;gap:.1rem;
+  animation:fadeIn .15s ease;
+}
+.chat-sender{font-size:.7rem;color:var(--muted);font-weight:600}
+.chat-sender.spec{color:var(--orange)}
+.chat-text{font-size:1.3rem;line-height:1.2}
+.chat-input-area{
+  padding:.6rem .75rem;border-top:1px solid var(--border);flex-shrink:0;
+}
+.chat-input-row{display:flex;gap:.4rem;align-items:center}
+.emoji-input{
+  flex:1;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:.45rem .6rem;font-size:1.2rem;color:var(--text);outline:none;
+  font-family:inherit;
+}
+.emoji-input::placeholder{font-size:.78rem}
+.emoji-hint{font-size:.68rem;color:var(--muted2);margin-top:.25rem}
+
+/* Chat toggle button */
+#chat-toggle{
+  position:fixed;right:.75rem;bottom:calc(var(--hand-h,120px) + .75rem);
+  z-index:45;
+  width:44px;height:44px;border-radius:50%;border:1.5px solid var(--border);
+  background:rgba(10,23,16,.9);color:var(--text);font-size:1.2rem;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:var(--shadow);transition:all var(--trans);
+}
+#chat-toggle:hover{border-color:var(--gold)}
+#chat-badge{
+  position:absolute;top:-4px;right:-4px;
+  background:var(--danger);color:#fff;border-radius:50%;
+  width:18px;height:18px;font-size:.65rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* =====================================================================
+   RULES MODAL
+===================================================================== */
+.rules-content{
+  max-height:60vh;overflow-y:auto;
+  font-size:.82rem;line-height:1.65;color:var(--muted);
+}
+.rules-content h4{color:var(--gold);font-weight:700;margin:1rem 0 .35rem;font-size:.88rem}
+.rules-content ul{padding-left:1.2rem;margin:.25rem 0}
+.rules-content li{margin:.2rem 0}
+.rules-content strong{color:var(--text)}
+.count-table{width:100%;border-collapse:collapse;margin:.5rem 0;font-size:.8rem}
+.count-table th{text-align:left;color:var(--muted2);padding:.2rem .4rem;font-size:.72rem;text-transform:uppercase}
+.count-table td{padding:.25rem .4rem;border-top:1px solid var(--border)}
+.count-table td:last-child{color:var(--t1);font-weight:600}
+
+/* =====================================================================
+   TOAST NOTIFICATIONS
+===================================================================== */
+#toast-area{
+  position:fixed;top:.75rem;right:.75rem;z-index:200;
+  display:flex;flex-direction:column;gap:.35rem;pointer-events:none;
+}
+.toast{
+  background:var(--surface);border:1px solid var(--border);
+  border-left:4px solid var(--gold);border-radius:var(--radius);
+  padding:.5rem .9rem;font-size:.84rem;max-width:280px;
+  box-shadow:var(--shadow);animation:slideLeft .2s ease;
+  pointer-events:auto;
+}
+.toast.toast-error{border-left-color:var(--danger)}
+.toast.toast-info{border-left-color:var(--muted)}
+.toast.toast-success{border-left-color:var(--success)}
+@keyframes slideLeft{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+
+/* =====================================================================
+   RESPONSIVE TWEAKS
+===================================================================== */
+@media(max-width:600px){
+  .domino-xl .domino-half{width:46px;height:46px}
+  .domino-xl .pip{width:9px;height:9px}
+  .domino-lg .domino-half{width:36px;height:36px}
+  .domino-lg .pip{width:7px;height:7px}
+  #game-board{
+    grid-template-columns:70px 1fr 70px;
+    grid-template-rows:80px 1fr 80px;
+  }
+  .pzone-name{font-size:.7rem;padding:.15rem .4rem;max-width:64px}
+  #chat-panel{width:240px}
+  .bid-grid{grid-template-columns:repeat(4,1fr)}
+  .trump-grid{grid-template-columns:repeat(4,1fr)}
+}
+@media(max-height:700px){
+  #hand-area{padding:.35rem .4rem .4rem}
+  #game-header{padding:.3rem .6rem}
+}
+
+/* =====================================================================
+   HAND HISTORY MINI TABLE
+===================================================================== */
+.hand-hist-table{width:100%;border-collapse:collapse;font-size:.78rem;margin:.5rem 0}
+.hand-hist-table th{color:var(--muted2);font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;padding:.2rem .3rem;text-align:center}
+.hand-hist-table td{padding:.25rem .3rem;border-top:1px solid var(--border);text-align:center}
+.hand-hist-table tr.made td:first-child::after{content:'✓';color:var(--success);margin-left:.3rem}
+.hand-hist-table tr.set td:first-child::after{content:'✗';color:var(--danger);margin-left:.3rem}
+
+/* =====================================================================
+   MISC ANIMATIONS
+===================================================================== */
+.trick-flash{animation:trickWin .7s ease}
+@keyframes trickWin{
+  0%{transform:scale(1)}
+  40%{transform:scale(1.04)}
+  70%{transform:scale(.98)}
+  100%{transform:scale(1)}
+}
+</style>
 </head>
 <body>
 
-<!-- ================================================================
+<!-- =====================================================================
      TOAST CONTAINER
-     ================================================================ -->
-<div id="toast-container"></div>
+===================================================================== -->
+<div id="toast-area"></div>
 
-<!-- ================================================================
-     SCREEN: LOBBY
-     ================================================================ -->
+<!-- =====================================================================
+     SCREEN: LOBBY (create / direct join)
+===================================================================== -->
 <div id="screen-lobby" class="screen">
-  <div class="card">
-    <h1>42</h1>
-    <p class="subtitle">The Texas Domino Game</p>
-
-    <div class="form-group">
-      <label for="inp-name">Your Name</label>
-      <input id="inp-name" type="text" placeholder="e.g. Texas Pete" maxlength="16" />
+  <div class="lobby-wrap flex flex-col gap-4">
+    <div>
+      <div class="game-logo">42</div>
+      <p class="game-tagline">Texas Domino &bull; Double-Six &bull; 4 Players</p>
     </div>
 
-    <button class="btn btn-primary" style="width:100%" onclick="createRoom()">
-      Create New Game
-    </button>
+    <div class="panel">
+      <div class="tab-row">
+        <button class="tab-btn active" onclick="lobbyTab('create')">Create Game</button>
+        <button class="tab-btn" onclick="lobbyTab('join')">Join Game</button>
+      </div>
 
-    <div class="divider">or join existing</div>
+      <!-- Create tab -->
+      <div id="tab-create" class="lobby-panel flex flex-col gap-3">
+        <div class="field">
+          <span class="label">Your Name</span>
+          <input id="lob-name-c" class="input" type="text" placeholder="e.g. Texas Pete" maxlength="16"/>
+        </div>
+        <div class="field">
+          <span class="label">Game Mode</span>
+          <div class="select-group" id="mode-pills">
+            <div class="select-pill active" data-mode="points_250" onclick="selectMode(this)">250 Points</div>
+            <div class="select-pill" data-mode="marks_7" onclick="selectMode(this)">7 Marks</div>
+          </div>
+          <div class="mode-info" id="mode-info-text">
+            <strong>250 Points</strong> – Standard game. Teams earn points from tricks (1 pt each) and count dominoes (5 &amp; 10 pts). If you make your bid, both teams keep their points; if you fail, you score 0 and opponents get your bid + their points. First to <strong>250</strong> wins.
+          </div>
+        </div>
+        <button class="btn btn-gold w-full btn-lg" onclick="createRoom()">Create Game</button>
+        <button class="btn btn-ghost w-full text-sm" onclick="showRules()">📖 Rules</button>
+      </div>
 
-    <div class="form-group">
-      <label for="inp-room">Room Code</label>
-      <input id="inp-room" type="text" placeholder="6-letter code" maxlength="6"
-             style="text-transform:uppercase" />
+      <!-- Join tab -->
+      <div id="tab-join" class="lobby-panel flex flex-col gap-3 hidden">
+        <div class="field">
+          <span class="label">Your Name</span>
+          <input id="lob-name-j" class="input" type="text" placeholder="e.g. Texas Pete" maxlength="16"/>
+        </div>
+        <div class="field">
+          <span class="label">Room Code</span>
+          <input id="lob-room" class="input" type="text" placeholder="6-letter code" maxlength="6" style="text-transform:uppercase;letter-spacing:.1em;font-size:1.1rem"/>
+        </div>
+        <button class="btn btn-gold w-full btn-lg" onclick="joinGame()">Join Game</button>
+        <button class="btn btn-ghost w-full text-sm" onclick="showRules()">📖 Rules</button>
+      </div>
     </div>
-    <button class="btn btn-secondary" style="width:100%" onclick="joinRoom()">
-      Join Game
-    </button>
   </div>
 </div>
 
-<!-- ================================================================
+<!-- =====================================================================
+     SCREEN: INVITE JOIN (when arriving via share link)
+===================================================================== -->
+<div id="screen-invite" class="screen hidden">
+  <div class="lobby-wrap flex flex-col gap-4">
+    <div>
+      <div class="game-logo">42</div>
+      <p class="game-tagline">You've been invited to play!</p>
+    </div>
+    <div class="panel flex flex-col gap-3">
+      <p class="text-center text-sm text-muted">Joining room:</p>
+      <div class="invite-room-badge">
+        <div class="invite-room-code" id="invite-code-display">------</div>
+      </div>
+      <div class="field">
+        <span class="label">Enter Your Name</span>
+        <input id="invite-name" class="input" type="text" placeholder="e.g. Lone Star" maxlength="16"/>
+      </div>
+      <button class="btn btn-gold w-full btn-lg" onclick="joinInvite()">Join Game</button>
+      <button class="btn btn-outline w-full text-sm" onclick="goLobby()">Back to Lobby</button>
+    </div>
+  </div>
+</div>
+
+<!-- =====================================================================
+     SCREEN: SPECTATOR OFFER (room full)
+===================================================================== -->
+<div id="screen-spectate-offer" class="screen hidden">
+  <div class="lobby-wrap flex flex-col gap-4">
+    <div class="panel text-center flex flex-col gap-3">
+      <div style="font-size:2.5rem">🎪</div>
+      <h2 style="font-size:1.3rem;font-weight:700;color:var(--text)">Room Is Full!</h2>
+      <p class="text-sm text-muted">
+        This match already has 4 players. Would you like to spectate and watch the game?
+      </p>
+      <div class="field">
+        <span class="label">Your Name</span>
+        <input id="spec-name" class="input" type="text" placeholder="e.g. Spectator Sam" maxlength="16"/>
+      </div>
+      <input type="hidden" id="spec-room-id"/>
+      <button class="btn btn-gold w-full" onclick="joinAsSpectator()">👀 Watch as Spectator</button>
+      <button class="btn btn-outline w-full text-sm" onclick="goLobby()">Back to Lobby</button>
+    </div>
+  </div>
+</div>
+
+<!-- =====================================================================
      SCREEN: WAITING ROOM
-     ================================================================ -->
+===================================================================== -->
 <div id="screen-waiting" class="screen hidden">
-  <div class="card">
-    <h2>Waiting for Players</h2>
-    <p style="color:var(--muted);font-size:.85rem;margin:.3rem 0">Share this code:</p>
-    <span class="room-code" id="waiting-room-code" onclick="copyRoomCode(this)">------</span>
-    <p style="color:var(--muted);font-size:.8rem;margin-bottom:.75rem">
-      (click to copy)
-    </p>
-
-    <div class="player-slots" id="waiting-slots">
-      <div class="player-slot empty">Seat 1</div>
-      <div class="player-slot empty">Seat 2</div>
-      <div class="player-slot empty">Seat 3</div>
-      <div class="player-slot empty">Seat 4</div>
+  <div class="waiting-wrap flex flex-col gap-4">
+    <div class="text-center">
+      <div class="game-logo" style="font-size:3rem">42</div>
     </div>
-    <p style="color:var(--muted);font-size:.8rem;text-align:center;margin-top:.5rem">
-      Teams: P1 &amp; P3 &nbsp;vs&nbsp; P2 &amp; P4
-    </p>
+    <div class="panel flex flex-col gap-3">
+      <div class="text-center">
+        <p class="text-xs text-muted uppercase" style="letter-spacing:.08em;margin-bottom:.35rem">Room Code</p>
+        <div class="room-code-display" id="wait-code" onclick="copyCode()">------</div>
+        <p class="copy-hint">tap to copy</p>
+      </div>
+
+      <div class="field">
+        <span class="label">Share Invite Link</span>
+        <div class="invite-url-row">
+          <input id="invite-url" class="invite-url-input" readonly/>
+          <button class="btn btn-outline btn-sm" onclick="copyInviteUrl()">Copy</button>
+        </div>
+      </div>
+
+      <div class="player-grid" id="wait-seats"></div>
+      <div class="teams-legend">
+        Team 1: <span class="text-t1">P1 &amp; P3</span> &nbsp;·&nbsp;
+        Team 2: <span class="text-t2">P2 &amp; P4</span>
+      </div>
+      <p id="wait-status" class="text-center text-sm text-muted">Waiting for players to join…</p>
+    </div>
   </div>
 </div>
 
-<!-- ================================================================
+<!-- =====================================================================
      SCREEN: GAME
-     ================================================================ -->
-<div id="screen-game" class="screen hidden" style="padding:0; justify-content:stretch;">
+===================================================================== -->
+<div id="screen-game" class="hidden" style="position:fixed;inset:0;display:grid;grid-template-rows:auto 1fr auto auto;overflow:hidden">
+
+  <!-- Spectator banner (hidden unless spectating) -->
+  <div id="spec-banner" class="spectator-bar hidden">
+    👀 You are spectating this match
+  </div>
 
   <!-- Header -->
   <div id="game-header">
-    <div class="hgroup">
-      <span style="font-weight:700;color:var(--accent);font-size:1.05rem">42</span>
-      <span class="badge" id="hdr-hand">Hand 1</span>
-      <span class="badge" id="hdr-tricks">Trick 0/7</span>
-      <span class="badge trump-badge hidden" id="hdr-trump">Trump: –</span>
+    <div class="hdr-group">
+      <span class="hdr-title">42</span>
+      <span class="chip" id="hdr-hand">Hand 1</span>
+      <span class="chip" id="hdr-tricks">Trick 0/7</span>
+      <span class="chip chip-trump hidden" id="hdr-trump">Trump: –</span>
     </div>
-    <div class="hgroup">
-      <span class="score-badge">
-        <span style="color:var(--t1);font-size:.8rem">T1</span>
-        <span class="score-t1" id="hdr-t1-pts">0</span>
-        <span style="color:var(--muted);font-size:.75rem">pts</span>
-        &nbsp;
-        <div class="marks-row" id="hdr-t1-marks"></div>
-      </span>
-      <span style="color:var(--muted)">|</span>
-      <span class="score-badge">
-        <span style="color:var(--t2);font-size:.8rem">T2</span>
-        <span class="score-t2" id="hdr-t2-pts">0</span>
-        <span style="color:var(--muted);font-size:.75rem">pts</span>
-        &nbsp;
-        <div class="marks-row" id="hdr-t2-marks"></div>
-      </span>
+    <div class="hdr-group">
+      <div class="score-block">
+        <div>
+          <div class="score-team-label text-t1">T1</div>
+          <div class="score-val text-t1" id="hdr-t1-pts">0</div>
+          <div class="score-total" id="hdr-t1-total">0 total</div>
+        </div>
+        <div class="score-sep">vs</div>
+        <div>
+          <div class="score-team-label text-t2">T2</div>
+          <div class="score-val text-t2" id="hdr-t2-pts">0</div>
+          <div class="score-total" id="hdr-t2-total">0 total</div>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-icon" onclick="showRules()" title="Rules">📖</button>
     </div>
   </div>
 
   <!-- Board -->
   <div id="game-board">
-    <!-- North (P3 = partner) -->
-    <div class="player-zone north" id="pzone-north">
-      <div class="pz-name partner" id="pname-north">P3</div>
-      <div class="pz-count" id="pcount-north">7 tiles</div>
-      <div class="pz-played" id="pplayed-north"></div>
+    <!-- North -->
+    <div class="pzone pzone-north" id="pzone-north">
+      <div class="pzone-name partner" id="pname-north">P3</div>
+      <div class="pzone-tiles"><span class="tile-count-badge" id="pcount-north">7</span></div>
+      <div class="pzone-played" id="pplayed-north"></div>
     </div>
-
-    <!-- West (P2 = opponent) -->
-    <div class="player-zone west" id="pzone-west">
-      <div class="pz-name opp" id="pname-west">P2</div>
-      <div class="pz-count" id="pcount-west">7 tiles</div>
-      <div class="pz-played" id="pplayed-west"></div>
+    <!-- West -->
+    <div class="pzone pzone-west" id="pzone-west">
+      <div class="pzone-name opp" id="pname-west">P2</div>
+      <div class="pzone-tiles"><span class="tile-count-badge" id="pcount-west">7</span></div>
+      <div class="pzone-played" id="pplayed-west"></div>
     </div>
-
     <!-- Trick center -->
     <div id="trick-center">
       <div class="tc-slot" id="tc-north"></div>
       <div class="tc-slot" id="tc-west"></div>
+      <div id="tc-mid">trick</div>
       <div class="tc-slot" id="tc-east"></div>
       <div class="tc-slot" id="tc-south"></div>
     </div>
-
-    <!-- East (P4 = opponent) -->
-    <div class="player-zone east" id="pzone-east">
-      <div class="pz-name opp" id="pname-east">P4</div>
-      <div class="pz-count" id="pcount-east">7 tiles</div>
-      <div class="pz-played" id="pplayed-east"></div>
+    <!-- East -->
+    <div class="pzone pzone-east" id="pzone-east">
+      <div class="pzone-name opp" id="pname-east">P4</div>
+      <div class="pzone-tiles"><span class="tile-count-badge" id="pcount-east">7</span></div>
+      <div class="pzone-played" id="pplayed-east"></div>
     </div>
-
-    <!-- South (P1 = you if player_num 1, rotated for others) -->
-    <div class="player-zone south" id="pzone-south">
-      <div class="pz-played" id="pplayed-south"></div>
-      <div class="pz-count" id="pcount-south">7 tiles</div>
-      <div class="pz-name you" id="pname-south">You</div>
+    <!-- South (you) -->
+    <div class="pzone pzone-south" id="pzone-south">
+      <div class="pzone-played" id="pplayed-south"></div>
+      <div class="pzone-tiles"><span class="tile-count-badge" id="pcount-south">7</span></div>
+      <div class="pzone-name you" id="pname-south">You</div>
     </div>
   </div>
 
   <!-- Status bar -->
-  <div id="game-status">
-    <span id="status-text">Waiting…</span>
-  </div>
+  <div id="game-status"><span id="status-msg">Waiting…</span></div>
 
-  <!-- Your hand -->
+  <!-- Hand -->
   <div id="hand-area">
     <div id="hand-label">Your Hand</div>
     <div id="hand-dominoes"></div>
   </div>
 </div>
 
-<!-- ================================================================
+<!-- =====================================================================
      SCREEN: GAME OVER
-     ================================================================ -->
+===================================================================== -->
 <div id="screen-gameover" class="screen hidden">
-  <div class="card">
-    <h2>Game Over!</h2>
-    <div id="go-announcement" class="winner-announcement wa-t1">Team 1 Wins!</div>
-    <div class="final-scores">
-      <div class="fs-team">
-        <div class="fs-label" style="color:var(--t1)">Team 1 (P1 &amp; P3)</div>
-        <div class="fs-marks score-t1" id="go-t1-marks">0</div>
-        <div class="fs-label">marks</div>
+  <div class="gameover-wrap flex flex-col gap-3">
+    <div class="gameover-trophy" id="go-trophy">🏆</div>
+    <div class="gameover-headline text-gold" id="go-headline">Team 1 Wins!</div>
+    <div class="panel flex flex-col gap-3">
+      <div class="final-scores-grid">
+        <div class="final-cell" id="go-t1-cell">
+          <div class="rc-team text-t1">Team 1 (P1 &amp; P3)</div>
+          <div class="final-pts text-t1" id="go-t1-total">0</div>
+          <div class="final-marks text-muted" id="go-t1-marks">0 marks</div>
+        </div>
+        <div class="final-cell" id="go-t2-cell">
+          <div class="rc-team text-t2">Team 2 (P2 &amp; P4)</div>
+          <div class="final-pts text-t2" id="go-t2-total">0</div>
+          <div class="final-marks text-muted" id="go-t2-marks">0 marks</div>
+        </div>
       </div>
-      <div class="fs-team">
-        <div class="fs-label" style="color:var(--t2)">Team 2 (P2 &amp; P4)</div>
-        <div class="fs-marks score-t2" id="go-t2-marks">0</div>
-        <div class="fs-label">marks</div>
-      </div>
+      <div id="go-history-section"></div>
+      <button class="btn btn-gold w-full btn-lg" onclick="requestNewHand()">Play Again</button>
+      <button class="btn btn-outline w-full" onclick="goLobby()">Back to Lobby</button>
     </div>
-    <button class="btn btn-primary" style="width:100%;margin-top:.5rem" onclick="playAgain()">
-      Play Again
-    </button>
-    <button class="btn btn-secondary" style="width:100%;margin-top:.5rem" onclick="goLobby()">
-      Back to Lobby
-    </button>
   </div>
 </div>
 
-<!-- ================================================================
+<!-- =====================================================================
+     FLOATING CHAT BUTTON + PANEL
+===================================================================== -->
+<button id="chat-toggle" class="hidden" onclick="toggleChat()">
+  💬
+  <div id="chat-badge" class="hidden">0</div>
+</button>
+
+<div id="chat-panel">
+  <div class="chat-header">
+    <span class="chat-header-title">💬 Chat</span>
+    <button class="btn btn-ghost btn-sm" onclick="toggleChat()">✕</button>
+  </div>
+  <div id="chat-messages"></div>
+  <div class="chat-input-area">
+    <div class="chat-input-row">
+      <input id="chat-input" class="emoji-input" type="text" placeholder="Emoji only…" maxlength="40"/>
+      <button class="btn btn-gold btn-sm" onclick="sendChat()">Send</button>
+    </div>
+    <p class="emoji-hint">Only emoji are allowed 😊🎉</p>
+  </div>
+</div>
+
+<!-- =====================================================================
      MODAL: BIDDING
-     ================================================================ -->
+===================================================================== -->
 <div id="modal-bid" class="modal-overlay hidden">
   <div class="modal-box">
     <h3>Your Bid</h3>
-    <p style="font-size:.85rem;color:var(--muted);margin-bottom:.75rem">
-      Current high: <strong id="bid-high-display">None</strong>
-    </p>
-
-    <!-- Preset bid buttons: 30-42, low, 42-special, pass -->
-    <div class="bid-preset-grid" id="bid-presets"></div>
-
-    <!-- Marks (only shown when low/42 selected) -->
-    <div id="marks-row" class="form-group hidden">
-      <label>Marks (1–5)</label>
-      <div style="display:flex;gap:.4rem;align-items:center">
-        <input id="inp-marks" type="number" min="1" max="5" value="1"
-               style="width:80px;" />
-        <span style="font-size:.8rem;color:var(--muted)">current: <span id="cur-marks">1</span></span>
-      </div>
+    <p>Current high bid: <strong id="bid-high-display">None</strong></p>
+    <div class="bid-grid" id="bid-grid"></div>
+    <div class="marks-row hidden" id="marks-row">
+      <label>Marks:</label>
+      <input id="inp-marks" class="input marks-input" type="number" min="1" max="5" value="1"/>
+      <span class="text-xs text-muted">(current: <span id="cur-marks">1</span>)</span>
     </div>
-
-    <div class="modal-row">
-      <button class="btn btn-primary" id="bid-submit-btn" onclick="submitBid()">Submit Bid</button>
-      <button class="btn btn-secondary" onclick="submitPass()">Pass</button>
+    <div class="flex gap-2" style="margin-top:.75rem">
+      <button class="btn btn-gold" onclick="submitBid()">Submit Bid</button>
+      <button class="btn btn-outline" onclick="submitPass()">Pass</button>
     </div>
   </div>
 </div>
 
-<!-- ================================================================
+<!-- =====================================================================
      MODAL: TRUMP SELECTION
-     ================================================================ -->
+===================================================================== -->
 <div id="modal-trump" class="modal-overlay hidden">
   <div class="modal-box">
     <h3>Select Trump Suit</h3>
-    <p style="font-size:.85rem;color:var(--muted)">
-      You won the bid: <strong id="trump-bid-display">–</strong>
-    </p>
+    <p>You won the bid: <strong id="trump-bid-display">–</strong>. Choose your trump suit.</p>
     <div class="trump-grid" id="trump-grid"></div>
-    <div class="modal-row" style="margin-top:1rem">
-      <button class="btn btn-primary" onclick="submitTrump()">Set Trump</button>
+    <p class="text-xs text-muted" style="margin-top:.35rem">Trump dominoes rank higher than all other dominoes, regardless of their other number.</p>
+    <div style="margin-top:.75rem">
+      <button class="btn btn-gold" onclick="submitTrump()">Set Trump</button>
     </div>
   </div>
 </div>
 
-<!-- ================================================================
+<!-- =====================================================================
      MODAL: HAND RESULT
-     ================================================================ -->
+===================================================================== -->
 <div id="modal-hand-result" class="modal-overlay hidden">
-  <div class="modal-box" style="text-align:center">
+  <div class="modal-box">
     <h3>Hand Complete</h3>
-    <div id="hr-made-badge" class="made-badge made">Made It!</div>
-
-    <div class="result-grid">
+    <div class="flex justify-center"><div id="hr-made-badge" class="made-badge badge-made">Made It!</div></div>
+    <div class="result-scores">
       <div class="result-cell" id="hr-t1-cell">
-        <div class="rc-label" style="color:var(--t1)">Team 1 (P1 &amp; P3)</div>
-        <div class="rc-val score-t1" id="hr-t1-pts">0</div>
-        <div class="rc-label">pts this hand</div>
-        <div class="rc-val" id="hr-t1-marks" style="font-size:1.1rem;margin-top:.4rem">0 marks</div>
+        <div class="rc-team text-t1">Team 1</div>
+        <div class="rc-pts text-t1" id="hr-t1-pts">0</div>
+        <div class="rc-gained" id="hr-t1-gained"></div>
+        <div style="margin-top:.35rem;font-size:.78rem;color:var(--muted)" id="hr-t1-total-txt"></div>
       </div>
       <div class="result-cell" id="hr-t2-cell">
-        <div class="rc-label" style="color:var(--t2)">Team 2 (P2 &amp; P4)</div>
-        <div class="rc-val score-t2" id="hr-t2-pts">0</div>
-        <div class="rc-label">pts this hand</div>
-        <div class="rc-val" id="hr-t2-marks" style="font-size:1.1rem;margin-top:.4rem">0 marks</div>
+        <div class="rc-team text-t2">Team 2</div>
+        <div class="rc-pts text-t2" id="hr-t2-pts">0</div>
+        <div class="rc-gained" id="hr-t2-gained"></div>
+        <div style="margin-top:.35rem;font-size:.78rem;color:var(--muted)" id="hr-t2-total-txt"></div>
       </div>
     </div>
-
-    <p id="hr-bid-info" style="font-size:.85rem;color:var(--muted);margin-bottom:1rem"></p>
-
-    <button class="btn btn-primary" style="width:100%" onclick="requestNewHand()">
-      Next Hand
-    </button>
+    <!-- Race bar -->
+    <div class="score-race" id="hr-race" style="display:none">
+      <div>
+        <div style="height:8px;background:var(--card2);border-radius:4px;overflow:hidden">
+          <div class="progress-fill progress-t1" id="hr-prog-t1" style="width:0%"></div>
+        </div>
+      </div>
+      <div class="score-race-goal text-gold">250</div>
+      <div>
+        <div style="height:8px;background:var(--card2);border-radius:4px;overflow:hidden">
+          <div class="progress-fill progress-t2" id="hr-prog-t2" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+    <p id="hr-bid-info" class="text-sm text-muted" style="margin:.5rem 0"></p>
+    <button class="btn btn-gold w-full" onclick="requestNewHand()">Next Hand</button>
   </div>
 </div>
 
-<!-- ================================================================
+<!-- =====================================================================
+     MODAL: RULES
+===================================================================== -->
+<div id="modal-rules" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:520px">
+    <h3>📖 How to Play 42</h3>
+    <div class="rules-content">
+      <h4>Overview</h4>
+      <p>42 is a trick-taking domino game for 4 players (2 teams). Your goal is to earn points through tricks and count dominoes.</p>
+
+      <h4>Setup</h4>
+      <ul>
+        <li>28 double-six dominoes are shuffled and each player draws <strong>7 tiles</strong>.</li>
+        <li>Players sit opposite their partner: P1 &amp; P3 vs P2 &amp; P4.</li>
+        <li>The player to the dealer's left bids first.</li>
+      </ul>
+
+      <h4>Bidding</h4>
+      <ul>
+        <li>Minimum bid is <strong>30</strong>. You can pass if you can't beat the current high bid.</li>
+        <li>Bid <strong>Low (0)</strong> to play without trump — your team must score no count dominoes.</li>
+        <li>Bid <strong>42</strong> (slam) — your team must capture all 42 points.</li>
+        <li>If all 4 players pass, the dealer is forced to bid 30.</li>
+        <li>The highest bidder declares trump and leads the first trick.</li>
+      </ul>
+
+      <h4>Count Dominoes (35 total points)</h4>
+      <table class="count-table">
+        <tr><th>Domino</th><th>Value</th></tr>
+        <tr><td>[5|5]</td><td>10 pts</td></tr>
+        <tr><td>[6|4]</td><td>10 pts</td></tr>
+        <tr><td>[5|0]</td><td>5 pts</td></tr>
+        <tr><td>[4|1]</td><td>5 pts</td></tr>
+        <tr><td>[3|2]</td><td>5 pts</td></tr>
+      </table>
+
+      <h4>Trump</h4>
+      <p>Once a trump suit is declared, <strong>all 7 dominoes of that suit rank above all others</strong>. The double of the trump suit is highest, then 6, 5, 4, 3, 2, 1, 0 (blank). A trump domino belongs <em>only</em> to the trump suit for that hand.</p>
+
+      <h4>Trick Play</h4>
+      <ul>
+        <li>Leader plays any tile. Others <strong>must follow suit</strong> if able.</li>
+        <li>If the lead tile contains trump on either end, everyone must play trump.</li>
+        <li>If you can't follow suit, you may play any tile.</li>
+        <li>Highest trump wins; otherwise highest tile of the lead suit wins.</li>
+        <li>Winner of each trick leads the next.</li>
+      </ul>
+
+      <h4>Scoring</h4>
+      <ul>
+        <li>7 tricks × 1 point each + 35 count domino points = <strong>42 points per hand</strong>.</li>
+        <li><strong>Bid made:</strong> Both teams score their actual points for the hand.</li>
+        <li><strong>Bid failed:</strong> Bidding team scores <strong>0</strong>; opponents score the bid amount + their own points.</li>
+      </ul>
+
+      <h4>Win Condition</h4>
+      <ul>
+        <li><strong>250-Point game:</strong> First team to reach 250 cumulative points wins. If both teams pass 250 on the same hand, the bidding team wins.</li>
+        <li><strong>7-Mark game:</strong> Each hand won earns 1 mark; first team to 7 marks wins.</li>
+      </ul>
+    </div>
+    <div style="margin-top:1rem">
+      <button class="btn btn-gold" onclick="closeRules()">Got it!</button>
+    </div>
+  </div>
+</div>
+
+<!-- =====================================================================
      JAVASCRIPT
-     ================================================================ -->
+===================================================================== -->
 <script>
-// ================================================================
-// STATE
-// ================================================================
-let socket       = null;
-let myPlayerNum  = null;
-let myRoom       = null;
-let myName       = '';
-let gameState    = null;
-let myHand       = [];
-let myTurn       = false;
-let selectedBid  = null;
-let selectedTrump = null;
-const SUIT_NAMES  = ['Blanks', 'Aces', 'Deuces', 'Treys', 'Fours', 'Fives', 'Sixes'];
+// =======================================================================
+// PIP DOT RENDERING
+// =======================================================================
+const PIP_POS = {
+  0:[],
+  1:[4],
+  2:[2,6],
+  3:[2,4,6],
+  4:[0,2,6,8],
+  5:[0,2,4,6,8],
+  6:[0,2,3,5,6,8]
+};
 
-// Seating relative to me:  south=me, north=partner, west=left, east=right
-// Player num offsets:       me+0, me+2, me+1, me+3  (partners share the +2)
-function seatOf(pnum) {
-  if (!myPlayerNum) return 'north';
-  const diff = ((pnum - myPlayerNum + 4) % 4);
-  return ['south','west','north','east'][diff];
+/**
+ * Returns true if the domino is a "count" tile — i.e. its two sides sum to
+ * a positive multiple of 5.  The five count tiles are:
+ *   [5|5]=10 pts, [6|4]=10 pts, [5|0]=5 pts, [4|1]=5 pts, [3|2]=5 pts
+ */
+function isCountDomino(a, b) {
+  const s = a + b;
+  return s > 0 && s % 5 === 0;
 }
 
-// ================================================================
-// SOCKET SETUP
-// ================================================================
-function connectSocket() {
-  socket = io({ transports: ['websocket', 'polling'] });
-
-  socket.on('connect',        ()       => console.log('connected'));
-  socket.on('connected',      (d)      => console.log('server ack', d.sid));
-
-  socket.on('room_joined',    onRoomJoined);
-  socket.on('player_joined',  onPlayerJoined);
-  socket.on('game_started',   onGameStarted);
-  socket.on('bid_placed',     onBidPlaced);
-  socket.on('bidding_complete', onBiddingComplete);
-  socket.on('trump_set',      onTrumpSet);
-  socket.on('domino_played',  onDominoPlayed);
-  socket.on('trick_complete', onTrickComplete);
-  socket.on('hand_complete',  onHandComplete);
-  socket.on('your_turn',      onYourTurn);
-  socket.on('waiting',        onWaiting);
-  socket.on('update',         onWaiting);
-  socket.on('game_state',     (d) => applyState(d));
-  socket.on('player_left',    (d) => toast(`${d.name} left the game`, 'info'));
-  socket.on('error',          (d) => toast(d.message || 'Error', 'error'));
-}
-
-// ================================================================
-// LOBBY ACTIONS
-// ================================================================
-function createRoom() {
-  const name = document.getElementById('inp-name').value.trim();
-  if (!name) { toast('Please enter your name', 'error'); return; }
-  myName = name;
-  ensureSocket();
-  socket.emit('create_room', { name });
-}
-
-function joinRoom() {
-  const name   = document.getElementById('inp-name').value.trim();
-  const roomId = document.getElementById('inp-room').value.trim().toUpperCase();
-  if (!name)   { toast('Please enter your name', 'error'); return; }
-  if (!roomId) { toast('Please enter a room code', 'error'); return; }
-  myName = name;
-  ensureSocket();
-  socket.emit('join_game', { name, room_id: roomId });
-}
-
-function ensureSocket() {
-  if (!socket || !socket.connected) connectSocket();
-}
-
-// Enter key on inputs
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    const room = document.getElementById('inp-room').value.trim();
-    if (room) joinRoom(); else createRoom();
+function pipGridEl(n, isCount) {
+  const g = document.createElement('div');
+  g.className = 'pip-grid';
+  const pos = PIP_POS[n] || [];
+  for (let i = 0; i < 9; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'pip-cell';
+    if (pos.includes(i)) {
+      const pip = document.createElement('div');
+      pip.className = 'pip' + (isCount ? ' pip-count' : '');
+      cell.appendChild(pip);
+    }
+    g.appendChild(cell);
   }
-});
+  return g;
+}
 
-// ================================================================
+function makeDomino(a, b, size, clickFn) {
+  const cnt = isCountDomino(a, b);
+  const el  = document.createElement('div');
+  el.className = `domino domino-${size}${cnt ? ' domino-count' : ''}`;
+
+  const h1 = document.createElement('div');
+  h1.className = 'domino-half';
+  h1.appendChild(pipGridEl(a, cnt));
+
+  const div = document.createElement('div');
+  div.className = 'domino-divider';
+
+  const h2 = document.createElement('div');
+  h2.className = 'domino-half';
+  h2.appendChild(pipGridEl(b, cnt));
+
+  el.append(h1, div, h2);
+
+  if (clickFn) {
+    el.classList.add('domino-playable');
+    el.addEventListener('click', () => clickFn(a, b));
+  }
+  return el;
+}
+
+// =======================================================================
+// STATE
+// =======================================================================
+let socket      = null;
+let myPNum      = null;   // 1–4 or null if spectator
+let myRoom      = null;
+let myName      = '';
+let isSpectator = false;
+let gameState   = null;
+let myHand      = [];
+let myTurn      = false;
+let selBid      = null;
+let selTrump    = null;
+let unreadChat  = 0;
+let chatOpen    = false;
+let pendingRoom = null;   // for spectator offer flow
+let inviteRoomCode = null;
+
+const SUIT_NAMES = ['Blanks','Aces','Deuces','Treys','Fours','Fives','Sixes'];
+
+// =======================================================================
+// SCREEN MANAGEMENT (defined early – used by boot)
+// =======================================================================
+const SCREENS = {
+  lobby:           'screen-lobby',
+  invite:          'screen-invite',
+  'spectate-offer':'screen-spectate-offer',
+  waiting:         'screen-waiting',
+  game:            'screen-game',
+  gameover:        'screen-gameover',
+};
+
+function showScreen(name) {
+  Object.entries(SCREENS).forEach(([k, id]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const isGame = (k === 'game');
+    if (k === name) {
+      el.classList.remove('hidden');
+      el.style.display = isGame ? 'grid' : 'flex';
+    } else {
+      el.classList.add('hidden');
+      el.style.display = '';
+    }
+  });
+}
+
+// =======================================================================
+// BOOT – detect invite URL param
+// =======================================================================
+(function boot() {
+  const p = new URLSearchParams(window.location.search);
+  const r = p.get('room');
+  if (r) {
+    inviteRoomCode = r.toUpperCase();
+    document.getElementById('invite-code-display').textContent = inviteRoomCode;
+    showScreen('invite');
+  } else {
+    showScreen('lobby');
+  }
+  // Enter key on inputs
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const s = currentScreen();
+      if (s === 'lobby') { const a = activeTab(); a === 'create' ? createRoom() : joinGame(); }
+      else if (s === 'invite') joinInvite();
+      else if (s === 'spectate-offer') joinAsSpectator();
+    }
+    if (e.key === 'Enter' && document.activeElement === document.getElementById('chat-input')) sendChat();
+  });
+})();
+
+function currentScreen() {
+  for (const id of ['lobby','invite','spectate-offer','waiting','game','gameover']) {
+    const el = document.getElementById('screen-' + id) || document.getElementById('screen-gameover');
+    if (el && !el.classList.contains('hidden')) return id;
+  }
+  return '';
+}
+function activeTab() {
+  return document.getElementById('tab-create').classList.contains('hidden') ? 'join' : 'create';
+}
+
+// =======================================================================
+// SOCKET
+// =======================================================================
+function ensureSocket() {
+  if (socket && socket.connected) return;
+  socket = io({ transports: ['websocket','polling'] });
+
+  socket.on('connect',            () => console.log('connected'));
+  socket.on('room_joined',        onRoomJoined);
+  socket.on('player_joined',      onPlayerJoined);
+  socket.on('room_full',          onRoomFull);
+  socket.on('spectator_confirmed',onSpectatorConfirmed);
+  socket.on('spectator_joined',   d => toast(`👀 ${d.name} is now spectating`, 'info'));
+  socket.on('spectator_left',     d => toast(`${d.name} stopped spectating`, 'info'));
+  socket.on('game_started',       onGameStarted);
+  socket.on('bid_placed',         onBidPlaced);
+  socket.on('bidding_complete',   onBiddingComplete);
+  socket.on('trump_set',          onTrumpSet);
+  socket.on('domino_played',      onDominoPlayed);
+  socket.on('trick_complete',     onTrickComplete);
+  socket.on('hand_complete',      onHandComplete);
+  socket.on('your_turn',          onYourTurn);
+  socket.on('waiting',            onWaiting);
+  socket.on('game_state',         d => { gameState = d; applyState(d); });
+  socket.on('player_left',        d => toast(`${d.name} left the game`, 'info'));
+  socket.on('chat_message',       onChatMessage);
+  socket.on('error',              d => toast(d.message || 'Error', 'error'));
+}
+
+// =======================================================================
+// LOBBY ACTIONS
+// =======================================================================
+function lobbyTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', (i===0) === (tab==='create')));
+  document.getElementById('tab-create').classList.toggle('hidden', tab !== 'create');
+  document.getElementById('tab-join').classList.toggle('hidden', tab !== 'join');
+}
+
+let selectedMode = 'points_250';
+function selectMode(el) {
+  document.querySelectorAll('#mode-pills .select-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  selectedMode = el.dataset.mode;
+  const info = {
+    points_250: '<strong>250 Points</strong> – Both teams accumulate points hand by hand. First to 250 wins. Failed bids score zero and gift opponents extra points.',
+    marks_7:    '<strong>7 Marks</strong> – Win a hand to earn 1 mark. First team to 7 marks wins the match.'
+  };
+  document.getElementById('mode-info-text').innerHTML = info[selectedMode] || '';
+}
+
+function createRoom() {
+  const name = (document.getElementById('lob-name-c').value||'').trim();
+  if (!name) { toast('Enter your name', 'error'); return; }
+  myName = name;
+  ensureSocket();
+  socket.emit('create_room', { name, game_mode: selectedMode });
+}
+
+function joinGame() {
+  const name = (document.getElementById('lob-name-j').value||'').trim();
+  const room = (document.getElementById('lob-room').value||'').trim().toUpperCase();
+  if (!name) { toast('Enter your name', 'error'); return; }
+  if (!room) { toast('Enter a room code', 'error'); return; }
+  myName = name;
+  ensureSocket();
+  socket.emit('join_game', { name, room_id: room });
+}
+
+function joinInvite() {
+  const name = (document.getElementById('invite-name').value||'').trim();
+  if (!name) { toast('Enter your name', 'error'); return; }
+  myName = name;
+  ensureSocket();
+  socket.emit('join_game', { name, room_id: inviteRoomCode });
+}
+
+function joinAsSpectator() {
+  const name = (document.getElementById('spec-name').value||'').trim() || 'Spectator';
+  const room = document.getElementById('spec-room-id').value;
+  ensureSocket();
+  socket.emit('join_spectator', { name, room_id: room });
+}
+
+// =======================================================================
 // SOCKET HANDLERS
-// ================================================================
+// =======================================================================
 function onRoomJoined(d) {
-  myPlayerNum = d.player_num;
-  myRoom      = d.room_id;
-  document.getElementById('waiting-room-code').textContent = d.room_id;
-  applyState(d.state);
+  myPNum    = d.player_num;
+  myRoom    = d.room_id;
+  isSpectator = false;
+  gameState = d.state;
+  setWaitingRoom(d);
   showScreen('waiting');
-  if (d.state.hand) myHand = d.state.hand;
 }
 
 function onPlayerJoined(d) {
-  if (d.state) applyState(d.state);
-  toast(`${d.name} (P${d.player_num}) joined`, 'info');
-  updateWaitingSlots(d.state);
+  if (d.state) { gameState = d.state; updateWaitingSlots(d.state); }
+  toast(`${d.name} (P${d.player_num}) joined`);
+}
+
+function onRoomFull(d) {
+  pendingRoom = d.room_id;
+  document.getElementById('spec-room-id').value = d.room_id;
+  // Pre-fill name from lobby inputs
+  const n = (document.getElementById('lob-name-j').value || document.getElementById('lob-name-c').value || '').trim();
+  document.getElementById('spec-name').value = n;
+  showScreen('spectate-offer');
+}
+
+function onSpectatorConfirmed(d) {
+  myPNum    = null;
+  myRoom    = d.room_id;
+  isSpectator = true;
+  gameState = d.state;
+  showScreen('game');
+  document.getElementById('spec-banner').classList.remove('hidden');
+  document.getElementById('hand-area').classList.add('hidden');
+  document.getElementById('chat-toggle').classList.remove('hidden');
+  applyState(d.state);
+  setStatus('You are spectating — enjoy the game!');
 }
 
 function onGameStarted(d) {
   if (d.state.hand) myHand = d.state.hand;
   gameState = d.state;
   showScreen('game');
+  if (!isSpectator) document.getElementById('chat-toggle').classList.remove('hidden');
+  document.getElementById('chat-toggle').classList.remove('hidden');
   applyState(d.state);
-  setStatus(`Bidding — P${d.state.bid_turn}'s turn`);
-  if (d.state.phase === 'bidding' && d.state.bid_turn === myPlayerNum) {
+  setStatus(`Hand ${d.state.hand_num} — Bidding starts with P${d.state.bid_turn}`);
+  if (!isSpectator && d.state.phase === 'bidding' && d.state.bid_turn === myPNum) {
     showBidModal(d.state);
   }
 }
 
 function onBidPlaced(d) {
-  const bidStr = d.bid === -1 ? 'passed' : (d.bid === 0 ? `bid Low (${d.marks}m)` : (d.bid === 42 ? `bid 42 (${d.marks}m)` : `bid ${d.bid}`));
+  const bidStr = d.bid === -1 ? 'passed' :
+                 d.bid === 0  ? `bid Low (${d.marks}m)` :
+                 d.bid === 42 ? `bid 42 (${d.marks}m)` : `bid ${d.bid}`;
   toast(`P${d.player_num} ${bidStr}`);
   setStatus(`Bidding — P${d.bid_turn}'s turn`);
-  if (d.bid_turn === myPlayerNum) {
-    showBidModal(gameState);
-  }
+  if (gameState) { gameState.high_bid = d.high_bid; gameState.high_bidder = d.high_bidder; gameState.high_marks = d.high_marks; }
+  if (!isSpectator && d.bid_turn === myPNum) showBidModal(gameState);
 }
 
 function onBiddingComplete(d) {
-  const bidStr = d.high_bid === 0 ? `Low (${d.high_marks} marks)` :
-                 d.high_bid === 42 ? `42 (${d.high_marks} marks)` : d.high_bid;
-  toast(`P${d.high_bidder} won the bid: ${bidStr}`);
+  const bs = d.high_bid === 0 ? `Low (${d.high_marks}m)` :
+             d.high_bid === 42 ? `42 (${d.high_marks}m)` : d.high_bid;
+  toast(`P${d.high_bidder} won the bid: ${bs}`);
   gameState = d.state || gameState;
   updateHeader(gameState);
-  if (d.high_bidder === myPlayerNum) {
+  if (!isSpectator && d.high_bidder === myPNum) {
     setStatus('You won the bid — select trump!');
     showTrumpModal(d);
   } else {
@@ -938,123 +1493,282 @@ function onBiddingComplete(d) {
 }
 
 function onTrumpSet(d) {
-  const trumpName = d.trump === null ? 'No Trump' : `${SUIT_NAMES[d.trump]} (${d.trump}s)`;
-  toast(`Trump: ${trumpName}`);
+  const tn = d.trump === null ? 'No Trump' : `${SUIT_NAMES[d.trump]}s (${d.trump})`;
+  toast(`Trump: ${tn}`);
   gameState = d.state || gameState;
   updateHeader(gameState);
   setStatus(`P${d.first_move} leads the first trick`);
 }
 
 function onYourTurn(d) {
-  myHand  = d.hand || myHand;
-  myTurn  = true;
+  myHand = d.hand || myHand;
+  myTurn = true;
   renderHand(true);
-  setStatus('Your turn — play a domino!');
-  updateHandCounts(gameState);
+  setStatus('⭐ Your turn! Play a domino.');
+  updateZoneCounts(gameState);
 }
 
 function onWaiting(d) {
   myHand = d.hand || myHand;
   myTurn = false;
   renderHand(false);
-  const pt = d.play_turn;
-  const nm = (gameState && gameState.players && gameState.players[pt]) || `P${pt}`;
-  setStatus(`P${pt} (${nm})'s turn to play`);
-  updateHandCounts(gameState);
+  const nm = (gameState && gameState.players && gameState.players[d.play_turn]) || `P${d.play_turn}`;
+  setStatus(`Waiting for ${nm} (P${d.play_turn}) to play…`);
+  updateZoneCounts(gameState);
 }
 
 function onDominoPlayed(d) {
   renderTrick(d.trick);
-  updateHandCounts(gameState);
+  updateZoneCounts(gameState);
 }
 
 function onTrickComplete(d) {
   const nm = (gameState && gameState.players && gameState.players[d.winner]) || `P${d.winner}`;
-  toast(`P${d.winner} (${nm}) wins the trick! (+${d.trick_score} pts)`);
-  updateHeader({
-    team1_score: d.team1_score,
-    team2_score: d.team2_score,
-    team1_marks: d.team1_marks,
-    team2_marks: d.team2_marks,
-    hand_num:    gameState ? gameState.hand_num : 1,
-    trick_count: d.trick_count,
-    trump:       gameState ? gameState.trump : null,
-  });
-  // Clear the trick display after a short delay
-  setTimeout(() => renderTrick([]), 900);
+  toast(`P${d.winner} (${nm}) wins the trick! +${d.trick_score} pts`, d.team === 1 ? 'info' : 'info');
+  if (gameState) {
+    gameState.team1_score  = d.team1_score;
+    gameState.team2_score  = d.team2_score;
+    gameState.team1_total  = d.team1_total;
+    gameState.team2_total  = d.team2_total;
+    gameState.trick_count  = d.trick_count;
+  }
+  updateHeader(gameState);
+  setTimeout(() => renderTrick([]), 800);
 }
 
 function onHandComplete(d) {
-  // Update gameState marks
   if (gameState) {
+    gameState.team1_total = d.team1_total;
+    gameState.team2_total = d.team2_total;
     gameState.team1_marks = d.team1_marks;
     gameState.team2_marks = d.team2_marks;
   }
-  showHandResult(d);
+  if (d.game_over) {
+    showGameOver(d);
+  } else {
+    showHandResult(d);
+  }
 }
 
-// ================================================================
+function onChatMessage(d) {
+  appendChatMsg(d);
+  if (!chatOpen) {
+    unreadChat++;
+    const badge = document.getElementById('chat-badge');
+    badge.textContent = unreadChat > 9 ? '9+' : unreadChat;
+    badge.classList.remove('hidden');
+  }
+}
+
+// =======================================================================
+// RENDER HAND
+// =======================================================================
+function renderHand(playable) {
+  const c = document.getElementById('hand-dominoes');
+  c.innerHTML = '';
+  if (!myHand.length) return;
+
+  // Figure out valid plays
+  const trick = gameState && gameState.trick ? gameState.trick : [];
+  const trump = gameState ? gameState.trump : null;
+  const validSet = getValidPlays(myHand, trump, trick);
+
+  myHand.forEach(([a, b]) => {
+    const isValid = validSet.some(([va, vb]) => va === a && vb === b);
+    const fn = (playable && isValid) ? () => playDomino(a, b) : null;
+    const dom = makeDomino(a, b, 'xl', fn);
+    if (playable && !isValid) dom.classList.add('domino-invalid');
+    c.appendChild(dom);
+  });
+}
+
+/**
+ * Returns the subset of `hand` that are valid to play given the current `trick`.
+ * Suit-following rules (mirror of server-side enforcement):
+ *  1. If no trick has been started yet, any domino may be led.
+ *  2. If trump was led (either end of lead tile is trump), everyone must follow
+ *     trump if they hold any trump tile.
+ *  3. Otherwise, the lead suit is the higher end of the lead tile; players
+ *     must follow that suit if they have it.
+ *  4. If a player cannot follow suit, they may play any tile (including trump).
+ */
+function getValidPlays(hand, trump, trick) {
+  if (!trick || trick.length === 0) return hand;
+  const lead = trick[0].domino;
+  const leadSuit = (trump !== null && trump !== undefined && (lead[0] === trump || lead[1] === trump))
+    ? trump
+    : Math.max(lead[0], lead[1]);
+  const hasSuit = hand.some(([a,b]) => a === leadSuit || b === leadSuit);
+  return hasSuit ? hand.filter(([a,b]) => a === leadSuit || b === leadSuit) : hand;
+}
+
+function playDomino(a, b) {
+  if (!myTurn || isSpectator) return;
+  socket.emit('play', { room_id: myRoom, domino: [a, b] });
+  myTurn = false;
+  const idx = myHand.findIndex(([da,db]) => da===a && db===b);
+  if (idx >= 0) myHand.splice(idx, 1);
+  renderHand(false);
+  setStatus('Domino played — waiting for others…');
+}
+
+// =======================================================================
+// RENDER TRICK
+// =======================================================================
+function seatOf(pnum) {
+  if (!myPNum) return 'north'; // spectator default — relative to P1
+  const diff = ((pnum - myPNum + 4) % 4);
+  return ['south','west','north','east'][diff];
+}
+
+function renderTrick(trick) {
+  ['north','west','east','south'].forEach(s => {
+    document.getElementById('tc-' + s).innerHTML = '';
+  });
+  trick.forEach(item => {
+    const seat = seatOf(item.player);
+    const slot = document.getElementById('tc-' + seat);
+    if (slot) {
+      const d = makeDomino(item.domino[0], item.domino[1], 'md', null);
+      d.classList.add('domino-in-trick');
+      slot.appendChild(d);
+    }
+  });
+  const mid = document.getElementById('tc-mid');
+  mid.textContent = trick.length > 0 ? `${trick.length}/4` : 'trick';
+}
+
+// =======================================================================
+// HEADER / ZONES
+// =======================================================================
+function updateHeader(state) {
+  if (!state) return;
+  document.getElementById('hdr-hand').textContent   = `Hand ${state.hand_num}`;
+  document.getElementById('hdr-tricks').textContent = `Trick ${state.trick_count||0}/7`;
+  document.getElementById('hdr-t1-pts').textContent = state.team1_score ?? 0;
+  document.getElementById('hdr-t2-pts').textContent = state.team2_score ?? 0;
+  document.getElementById('hdr-t1-total').textContent = `${state.team1_total ?? 0} total`;
+  document.getElementById('hdr-t2-total').textContent = `${state.team2_total ?? 0} total`;
+
+  const trump = state.trump;
+  const tb = document.getElementById('hdr-trump');
+  if (trump !== null && trump !== undefined) {
+    tb.textContent = `${SUIT_NAMES[trump]}s Trump`;
+    tb.classList.remove('hidden');
+  } else {
+    tb.classList.add('hidden');
+  }
+}
+
+function updateZones(state) {
+  if (!state || !state.players) return;
+  for (let p = 1; p <= 4; p++) {
+    const seat = seatOf(p);
+    const name  = state.players[p] || `P${p}`;
+    const nameEl = document.getElementById('pname-' + seat);
+    if (!nameEl) continue;
+    nameEl.textContent = (p === myPNum && !isSpectator) ? 'You' : name;
+    nameEl.className = 'pzone-name';
+    if (p === myPNum && !isSpectator)            nameEl.classList.add('you');
+    else if (myPNum && p % 2 === myPNum % 2) nameEl.classList.add('partner');
+    else                                          nameEl.classList.add('opp');
+  }
+}
+
+function updateZoneCounts(state) {
+  if (!state) return;
+  updateZones(state);
+  for (let p = 1; p <= 4; p++) {
+    const seat  = seatOf(p);
+    const el    = document.getElementById('pcount-' + seat);
+    if (!el) continue;
+    if (p === myPNum && !isSpectator) {
+      el.textContent = myHand.length;
+    } else {
+      const played = (state.trick_count || 0);
+      const inTrick = (state.trick || []).filter(t => t.player === p).length;
+      el.textContent = Math.max(0, 7 - played - inTrick);
+    }
+  }
+
+  // Turn indicator
+  document.querySelectorAll('.turn-indicator').forEach(e => e.remove());
+  if (state.play_turn && state.phase === 'playing') {
+    const seat  = seatOf(state.play_turn);
+    const pzone = document.getElementById('pzone-' + seat);
+    if (pzone) {
+      const ind = document.createElement('div');
+      ind.className = 'turn-indicator';
+      pzone.insertBefore(ind, pzone.firstChild);
+    }
+  }
+}
+
+function applyState(state) {
+  if (!state) return;
+  gameState = state;
+  updateHeader(state);
+  updateWaitingSlots(state);
+  updateZoneCounts(state);
+  if (state.trick) renderTrick(state.trick);
+  if (state.hand) {
+    myHand = state.hand;
+    renderHand(state.phase === 'playing' && state.play_turn === myPNum && !isSpectator);
+  }
+}
+
+// =======================================================================
 // BID MODAL
-// ================================================================
+// =======================================================================
 function showBidModal(state) {
-  const hb = state ? state.high_bid : -1;
+  const hb = state ? state.high_bid  : -1;
   const hm = state ? state.high_marks : 1;
 
-  const highStr = hb === -1   ? 'None (open)' :
-                  hb === 0    ? `Low (${hm} marks)` :
-                  hb === 42   ? `42 (${hm} marks)` :
-                  `${hb}`;
-  document.getElementById('bid-high-display').textContent = highStr;
+  const hs = hb === -1  ? 'None (open)' :
+             hb === 0   ? `Low (${hm} mark${hm>1?'s':''})` :
+             hb === 42  ? `42 (${hm} mark${hm>1?'s':''})` : String(hb);
+  document.getElementById('bid-high-display').textContent = hs;
   document.getElementById('cur-marks').textContent = hm;
-  document.getElementById('inp-marks').value = hb === -1 ? 1 : Math.min(hm + 1, 5);
+  document.getElementById('inp-marks').value = Math.min(hm + 1, 5);
 
-  // Build presets
-  const grid = document.getElementById('bid-presets');
+  const grid = document.getElementById('bid-grid');
   grid.innerHTML = '';
-  selectedBid = null;
+  selBid = null;
 
-  const vals = [30,31,32,33,34,35,36,37,38,39,40,41];
-  vals.forEach(v => {
-    if (v <= hb) return; // can't bid below current high
-    if (hb === 0 || hb === 42) return; // regular bids invalid after low/42
-    addBidBtn(grid, String(v), v, false);
-  });
-
-  // Low and 42 always available if marks allow
-  addBidBtn(grid, 'Low', 0, true);
-  addBidBtn(grid, '42',  42, true);
+  // Regular bids 30–42 (skip if low/42 is already the high bid)
+  if (hb !== 0 && hb !== 42) {
+    for (let v = Math.max(30, hb + 1); v <= 42; v++) {
+      addBidTile(grid, String(v), v, false);
+    }
+  }
+  addBidTile(grid, 'Low', 0, true);
+  addBidTile(grid, '42',  42, true);
 
   document.getElementById('modal-bid').classList.remove('hidden');
 }
 
-function addBidBtn(grid, label, value, isSpecial) {
-  const b = document.createElement('button');
-  b.className = 'bid-btn' + (isSpecial ? ' special' : '');
-  b.textContent = label;
-  b.dataset.val = value;
-  b.onclick = () => selectBid(value, b);
-  grid.appendChild(b);
+function addBidTile(grid, label, val, special) {
+  const t = document.createElement('div');
+  t.className = 'bid-tile' + (special ? ' special' : '');
+  t.textContent = label;
+  t.dataset.val = val;
+  t.onclick = () => selectBid(val, t);
+  grid.appendChild(t);
 }
 
-function selectBid(val, btn) {
-  document.querySelectorAll('.bid-btn').forEach(b => b.classList.remove('selected'));
-  btn.classList.add('selected');
-  selectedBid = val;
-  const marksRow = document.getElementById('marks-row');
-  if (val === 0 || val === 42) {
-    marksRow.classList.remove('hidden');
-  } else {
-    marksRow.classList.add('hidden');
-  }
+function selectBid(val, el) {
+  document.querySelectorAll('.bid-tile').forEach(t => t.classList.remove('sel'));
+  el.classList.add('sel');
+  selBid = val;
+  const mr = document.getElementById('marks-row');
+  mr.classList.toggle('hidden', val !== 0 && val !== 42);
 }
 
 function submitBid() {
-  if (selectedBid === null) { toast('Select a bid first', 'error'); return; }
+  if (selBid === null) { toast('Select a bid first', 'error'); return; }
   let marks = 1;
-  if (selectedBid === 0 || selectedBid === 42) {
-    marks = parseInt(document.getElementById('inp-marks').value) || 1;
-  }
-  socket.emit('bid', { room_id: myRoom, bid: selectedBid, marks });
+  if (selBid === 0 || selBid === 42) marks = parseInt(document.getElementById('inp-marks').value) || 1;
+  socket.emit('bid', { room_id: myRoom, bid: selBid, marks });
   document.getElementById('modal-bid').classList.add('hidden');
   setStatus('Bid submitted — waiting…');
 }
@@ -1065,75 +1779,108 @@ function submitPass() {
   setStatus('You passed');
 }
 
-// ================================================================
+// =======================================================================
 // TRUMP MODAL
-// ================================================================
+// =======================================================================
 function showTrumpModal(d) {
-  const bidStr = d.high_bid === 0 ? `Low (${d.high_marks}m)` :
-                 d.high_bid === 42 ? `42 (${d.high_marks}m)` : d.high_bid;
-  document.getElementById('trump-bid-display').textContent = bidStr;
+  const bs = d.high_bid === 0 ? `Low (${d.high_marks}m)` :
+             d.high_bid === 42 ? `42 (${d.high_marks}m)` : d.high_bid;
+  document.getElementById('trump-bid-display').textContent = bs;
 
   const grid = document.getElementById('trump-grid');
   grid.innerHTML = '';
-  selectedTrump = null;
+  selTrump = null;
 
   for (let i = 0; i <= 6; i++) {
-    const b = document.createElement('button');
-    b.className = 'trump-btn';
-    b.innerHTML = `<span class="trump-num">${i}</span><span class="trump-name">${SUIT_NAMES[i]}</span>`;
-    b.onclick = () => selectTrump(i, b);
-    grid.appendChild(b);
+    const t = document.createElement('div');
+    t.className = 'trump-tile';
+    t.innerHTML = `<div class="trump-num">${i}</div><div class="trump-name">${SUIT_NAMES[i]}</div>`;
+    t.onclick = () => selectTrump(i, t);
+    grid.appendChild(t);
   }
-
+  // Show the hand dominoes as reference
   document.getElementById('modal-trump').classList.remove('hidden');
 }
 
-function selectTrump(val, btn) {
-  document.querySelectorAll('.trump-btn').forEach(b => b.classList.remove('selected'));
-  btn.classList.add('selected');
-  selectedTrump = val;
+function selectTrump(val, el) {
+  document.querySelectorAll('.trump-tile').forEach(t => t.classList.remove('sel'));
+  el.classList.add('sel');
+  selTrump = val;
 }
 
 function submitTrump() {
-  if (selectedTrump === null) { toast('Select a trump suit', 'error'); return; }
-  socket.emit('set_trump', { room_id: myRoom, trump: selectedTrump });
+  if (selTrump === null) { toast('Select a trump suit', 'error'); return; }
+  socket.emit('set_trump', { room_id: myRoom, trump: selTrump });
   document.getElementById('modal-trump').classList.add('hidden');
 }
 
-// ================================================================
+// =======================================================================
 // HAND RESULT MODAL
-// ================================================================
+// =======================================================================
 function showHandResult(d) {
   const badge = document.getElementById('hr-made-badge');
   badge.textContent = d.made ? '✓ Bid Made!' : '✗ Set!';
-  badge.className   = 'made-badge ' + (d.made ? 'made' : 'set');
+  badge.className   = 'made-badge ' + (d.made ? 'badge-made' : 'badge-set');
 
-  document.getElementById('hr-t1-pts').textContent   = d.team1_score;
-  document.getElementById('hr-t2-pts').textContent   = d.team2_score;
-  document.getElementById('hr-t1-marks').textContent = `${d.team1_marks} marks`;
-  document.getElementById('hr-t2-marks').textContent = `${d.team2_marks} marks`;
+  document.getElementById('hr-t1-pts').textContent  = d.t1_this_hand;
+  document.getElementById('hr-t2-pts').textContent  = d.t2_this_hand;
 
-  const bidStr = d.high_bid === 0 ? `Low (${d.high_marks}m)` :
-                 d.high_bid === 42 ? `42 (${d.high_marks}m)` : `${d.high_bid}`;
+  document.getElementById('hr-t1-gained').textContent  = d.t1_gained > 0 ? `+${d.t1_gained} pts earned` : 'scored 0 (bid failed)';
+  document.getElementById('hr-t2-gained').textContent  = d.t2_gained > 0 ? `+${d.t2_gained} pts earned` : 'scored 0 (bid failed)';
+  document.getElementById('hr-t1-gained').style.color   = d.t1_gained > 0 ? 'var(--success)' : 'var(--danger)';
+  document.getElementById('hr-t2-gained').style.color   = d.t2_gained > 0 ? 'var(--success)' : 'var(--danger)';
+
+  const mode = gameState && gameState.game_mode;
+  if (mode === 'points_250') {
+    document.getElementById('hr-t1-total-txt').textContent = `Running total: ${d.team1_total} / 250`;
+    document.getElementById('hr-t2-total-txt').textContent = `Running total: ${d.team2_total} / 250`;
+    const race = document.getElementById('hr-race');
+    race.style.display = 'grid';
+    document.getElementById('hr-prog-t1').style.width = Math.min(100, (d.team1_total / 250) * 100) + '%';
+    document.getElementById('hr-prog-t2').style.width = Math.min(100, (d.team2_total / 250) * 100) + '%';
+  } else {
+    document.getElementById('hr-t1-total-txt').textContent = `Marks: ${d.team1_marks} / 7`;
+    document.getElementById('hr-t2-total-txt').textContent = `Marks: ${d.team2_marks} / 7`;
+    document.getElementById('hr-race').style.display = 'none';
+  }
+
+  const bs = d.high_bid === 0 ? `Low` : d.high_bid === 42 ? `42` : `${d.high_bid}`;
   document.getElementById('hr-bid-info').textContent =
-    `T${d.bid_team} bid ${bidStr} — ${d.made ? 'made it!' : 'set by opponents'}`;
+    `T${d.bid_team} bid ${bs} — ${d.made ? 'made it!' : 'they were set!'}`;
 
-  // Highlight winning team cell
-  document.getElementById('hr-t1-cell').classList.remove('winner-cell');
-  document.getElementById('hr-t2-cell').classList.remove('winner-cell');
-  if (d.made) {
-    document.getElementById(`hr-t${d.bid_team}-cell`).classList.add('winner-cell');
-  } else {
-    document.getElementById(`hr-t${3-d.bid_team}-cell`).classList.add('winner-cell');
+  document.getElementById('hr-t1-cell').classList.toggle('winner', d.made ? d.bid_team === 1 : d.opp_team === 1);
+  document.getElementById('hr-t2-cell').classList.toggle('winner', d.made ? d.bid_team === 2 : d.opp_team === 2);
+  document.getElementById('modal-hand-result').classList.remove('hidden');
+}
+
+// =======================================================================
+// GAME OVER
+// =======================================================================
+function showGameOver(d) {
+  document.getElementById('modal-hand-result').classList.add('hidden');
+  document.getElementById('go-t1-total').textContent = d.team1_total;
+  document.getElementById('go-t2-total').textContent = d.team2_total;
+  document.getElementById('go-t1-marks').textContent = `${d.team1_marks} mark${d.team1_marks !== 1 ? 's' : ''}`;
+  document.getElementById('go-t2-marks').textContent = `${d.team2_marks} mark${d.team2_marks !== 1 ? 's' : ''}`;
+
+  const wt = d.winner_team;
+  document.getElementById('go-headline').textContent = `Team ${wt} Wins!`;
+  document.getElementById('go-headline').style.color = wt === 1 ? 'var(--t1)' : 'var(--t2)';
+  document.getElementById('go-t1-cell').classList.toggle('winner', wt === 1);
+  document.getElementById('go-t2-cell').classList.toggle('winner', wt === 2);
+
+  // Build hand history table
+  const hist = (gameState && gameState.hand_history) || [];
+  if (hist.length) {
+    let rows = hist.map(h =>
+      `<tr class="${h.made?'made':'set'}"><td>H${h.hand_num}</td><td>${h.high_bid===0?'Low':h.high_bid}</td>` +
+      `<td class="text-t1">${h.t1_gained}</td><td class="text-t2">${h.t2_gained}</td></tr>`
+    ).join('');
+    document.getElementById('go-history-section').innerHTML =
+      `<table class="hand-hist-table"><thead><tr><th>Hand</th><th>Bid</th><th>T1</th><th>T2</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
-  if (d.game_over) {
-    // Show game over instead
-    document.getElementById('modal-hand-result').classList.add('hidden');
-    showGameOver(d);
-  } else {
-    document.getElementById('modal-hand-result').classList.remove('hidden');
-  }
+  showScreen('gameover');
 }
 
 function requestNewHand() {
@@ -1142,235 +1889,144 @@ function requestNewHand() {
   myHand = [];
   renderHand(false);
   renderTrick([]);
-  setStatus('Waiting for new hand…');
-}
-
-// ================================================================
-// GAME OVER
-// ================================================================
-function showGameOver(d) {
-  document.getElementById('go-t1-marks').textContent = d.team1_marks;
-  document.getElementById('go-t2-marks').textContent = d.team2_marks;
-  const ann = document.getElementById('go-announcement');
-  ann.textContent = `Team ${d.winner_team} Wins!`;
-  ann.className   = `winner-announcement wa-t${d.winner_team}`;
-  showScreen('gameover');
-}
-
-function playAgain() {
-  socket.emit('new_hand', { room_id: myRoom });
-  showScreen('game');
-  myHand = [];
-  renderHand(false);
-  renderTrick([]);
   setStatus('New hand starting…');
 }
 
-function goLobby() {
-  myPlayerNum = null;
-  myRoom      = null;
-  myHand      = [];
-  gameState   = null;
-  showScreen('lobby');
-}
-
-// ================================================================
-// RENDER
-// ================================================================
-function makeDomino(a, b, size, clickFn) {
-  const el = document.createElement('div');
-  el.className = `domino domino-${size}`;
-  if (clickFn) {
-    el.classList.add('domino-playable');
-    el.onclick = clickFn;
-  } else {
-    el.classList.add('domino-played');
-  }
-  el.innerHTML = `<span class="dom-half">${a}</span>
-                  <div class="dom-divider"></div>
-                  <span class="dom-half">${b}</span>`;
-  return el;
-}
-
-function renderHand(playable) {
-  const container = document.getElementById('hand-dominoes');
-  container.innerHTML = '';
-  myHand.forEach(([a, b]) => {
-    const fn = playable ? () => playDomino(a, b) : null;
-    container.appendChild(makeDomino(a, b, 'lg', fn));
-  });
-}
-
-function playDomino(a, b) {
-  if (!myTurn) return;
-  socket.emit('play', { room_id: myRoom, domino: [a, b] });
-  myTurn = false;
-  // Optimistically remove from local hand
-  const idx = myHand.findIndex(([da, db]) => da === a && db === b);
-  if (idx >= 0) myHand.splice(idx, 1);
-  renderHand(false);
-  setStatus('Domino played — waiting…');
-}
-
-function renderTrick(trick) {
-  // trick = [{domino:[a,b], player:N}, ...]
-  const slots = {
-    south: document.getElementById('tc-south'),
-    north: document.getElementById('tc-north'),
-    west:  document.getElementById('tc-west'),
-    east:  document.getElementById('tc-east'),
-  };
-  Object.values(slots).forEach(s => s.innerHTML = '');
-
-  trick.forEach(item => {
-    const seat = seatOf(item.player);
-    const [a, b] = item.domino;
-    const slot = slots[seat];
-    if (slot) slot.appendChild(makeDomino(a, b, 'md', null));
-  });
-}
-
-function updateHeader(state) {
-  if (!state) return;
-  document.getElementById('hdr-hand').textContent   = `Hand ${state.hand_num}`;
-  document.getElementById('hdr-tricks').textContent = `Trick ${state.trick_count}/7`;
-  document.getElementById('hdr-t1-pts').textContent = state.team1_score ?? 0;
-  document.getElementById('hdr-t2-pts').textContent = state.team2_score ?? 0;
-  renderMarks('hdr-t1-marks', state.team1_marks || 0, 't1');
-  renderMarks('hdr-t2-marks', state.team2_marks || 0, 't2');
-
-  const trumpBadge = document.getElementById('hdr-trump');
-  if (state.trump !== null && state.trump !== undefined) {
-    trumpBadge.textContent = `Trump: ${SUIT_NAMES[state.trump]}`;
-    trumpBadge.classList.remove('hidden');
-  } else {
-    trumpBadge.classList.add('hidden');
-  }
-}
-
-function renderMarks(containerId, marks, team) {
-  const el = document.getElementById(containerId);
-  if (!el) return;
-  el.innerHTML = '';
-  for (let i = 0; i < 7; i++) {
-    const dot = document.createElement('div');
-    dot.className = `mark-dot${i < marks ? ` filled-${team}` : ''}`;
-    el.appendChild(dot);
-  }
+// =======================================================================
+// WAITING ROOM
+// =======================================================================
+function setWaitingRoom(d) {
+  document.getElementById('wait-code').textContent = d.room_id;
+  const url = `${window.location.origin}/join/${d.room_id}`;
+  document.getElementById('invite-url').value = url;
+  updateWaitingSlots(d.state);
 }
 
 function updateWaitingSlots(state) {
-  if (!state || !state.players) return;
-  const slots = document.getElementById('waiting-slots').children;
-  for (let i = 0; i < 4; i++) {
-    const pnum = i + 1;
-    const name = state.players[pnum];
-    const slot = slots[i];
+  if (!state) return;
+  const container = document.getElementById('wait-seats');
+  if (!container) return;
+  container.innerHTML = '';
+  for (let p = 1; p <= 4; p++) {
+    const name = state.players && state.players[p];
+    const team = p % 2 === 1 ? 1 : 2;
+    const seat = document.createElement('div');
+    const isMe = p === myPNum;
     if (name) {
-      slot.className = 'player-slot filled' + (pnum === myPlayerNum ? ' you' : '');
-      const teamTag = pnum % 2 === 1 ? 'T1' : 'T2';
-      slot.innerHTML = `P${pnum}: ${name} <span class="team-tag">(${teamTag})</span>`;
+      seat.className = `player-seat filled ${isMe ? 'filled-you' : (team === 1 ? 'filled-t1' : 'filled-t2')}`;
+      const avClass = team === 1 ? 'avatar-t1' : 'avatar-t2';
+      seat.innerHTML = `
+        <div class="seat-avatar ${avClass}">${name[0].toUpperCase()}</div>
+        <div class="seat-info">
+          <div class="seat-name">${name}${isMe ? ' (you)' : ''}</div>
+          <div class="seat-team">${team === 1 ? '🔵 Team 1' : '🔴 Team 2'} · P${p}</div>
+        </div>`;
     } else {
-      slot.className = 'player-slot empty';
-      slot.textContent = `Seat ${pnum}`;
+      seat.className = 'player-seat empty';
+      seat.innerHTML = `<div class="seat-avatar avatar-empty">P${p}</div><div class="seat-info"><div class="seat-name" style="color:var(--muted2)">Waiting…</div><div class="seat-team">${team===1?'🔵 Team 1':'�� Team 2'}</div></div>`;
     }
+    container.appendChild(seat);
+  }
+  const filled = Object.keys(state.players || {}).length;
+  document.getElementById('wait-status').textContent =
+    filled === 4 ? 'All players present — starting game!' :
+                   `${filled}/4 players joined — waiting for ${4 - filled} more…`;
+}
+
+// =======================================================================
+// CHAT
+// =======================================================================
+function toggleChat() {
+  chatOpen = !chatOpen;
+  document.getElementById('chat-panel').classList.toggle('open', chatOpen);
+  if (chatOpen) {
+    unreadChat = 0;
+    document.getElementById('chat-badge').classList.add('hidden');
+    document.getElementById('chat-input').focus();
+    // Re-render full history
+    const msgs = document.getElementById('chat-messages');
+    msgs.innerHTML = '';
+    if (gameState && gameState.chat_history) {
+      gameState.chat_history.forEach(appendChatMsg);
+    }
+    msgs.scrollTop = msgs.scrollHeight;
   }
 }
 
-function updatePlayerZones(state) {
-  if (!state || !state.players) return;
-  for (let pnum = 1; pnum <= 4; pnum++) {
-    const seat  = seatOf(pnum);
-    const name  = state.players[pnum] || `P${pnum}`;
-    const nameEl  = document.getElementById(`pname-${seat}`);
-    const countEl = document.getElementById(`pcount-${seat}`);
-    if (!nameEl) continue;
-    nameEl.textContent = pnum === myPlayerNum ? 'You' : name;
-    if (pnum === myPlayerNum) {
-      nameEl.className = 'pz-name you';
-    } else if (pnum % 2 === myPlayerNum % 2) {
-      nameEl.className = 'pz-name partner';
-    } else {
-      nameEl.className = 'pz-name opp';
-    }
-    // Hand count for opponents (we know ours)
-    if (state.phase === 'playing') {
-      const tricksPlayed = state.trick_count || 0;
-      const domInTrick = state.trick ? state.trick.filter(t => t.player === pnum).length : 0;
-      const played = tricksPlayed + domInTrick;
-      const remaining = Math.max(0, 7 - played);
-      countEl.textContent = pnum === myPlayerNum
-        ? `${myHand.length} tiles`
-        : `${remaining} tiles`;
-    } else {
-      countEl.textContent = '7 tiles';
-    }
-  }
+function appendChatMsg(d) {
+  const msgs = document.getElementById('chat-messages');
+  const el   = document.createElement('div');
+  el.className = 'chat-msg';
+  el.innerHTML = `<span class="chat-sender${d.spectator?' spec':''}">${d.sender}${d.spectator ? ' 👀' : ''}</span><span class="chat-text">${d.msg}</span>`;
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
 }
 
-function updateHandCounts(state) {
-  if (!state) return;
-  updatePlayerZones(state);
+function sendChat() {
+  const inp = document.getElementById('chat-input');
+  const msg = inp.value.trim();
+  if (!msg) return;
+  socket.emit('send_chat', { room_id: myRoom, message: msg });
+  inp.value = '';
 }
 
-function applyState(state) {
-  if (!state) return;
-  gameState = state;
-  updateHeader(state);
-  updateWaitingSlots(state);
-  updatePlayerZones(state);
-  if (state.trick) renderTrick(state.trick);
-  if (state.hand) {
-    myHand = state.hand;
-    renderHand(state.phase === 'playing' && state.play_turn === myPlayerNum);
-  }
+// =======================================================================
+// RULES MODAL
+// =======================================================================
+function showRules() {
+  document.getElementById('modal-rules').classList.remove('hidden');
+}
+function closeRules() {
+  document.getElementById('modal-rules').classList.add('hidden');
 }
 
+function goLobby() {
+  myPNum = null; myRoom = null; myHand = []; gameState = null; isSpectator = false;
+  document.getElementById('spec-banner').classList.add('hidden');
+  document.getElementById('hand-area').classList.remove('hidden');
+  document.getElementById('chat-toggle').classList.add('hidden');
+  document.getElementById('chat-panel').classList.remove('open');
+  // Clear invite params from URL
+  window.history.replaceState({}, '', '/');
+  showScreen('lobby');
+}
+
+// =======================================================================
+// STATUS / TOAST
+// =======================================================================
 function setStatus(msg) {
-  document.getElementById('status-text').textContent = msg;
+  document.getElementById('status-msg').textContent = msg;
 }
 
-// ================================================================
-// SCREEN MANAGEMENT
-// ================================================================
-function showScreen(name) {
-  const screens = {
-    lobby:    document.getElementById('screen-lobby'),
-    waiting:  document.getElementById('screen-waiting'),
-    game:     document.getElementById('screen-game'),
-    gameover: document.getElementById('screen-gameover'),
-  };
-  Object.values(screens).forEach(s => s.classList.add('hidden'));
-  const target = screens[name];
-  if (target) {
-    target.classList.remove('hidden');
-    target.style.display = name === 'game' ? 'grid' : 'flex';
-  }
-}
-
-// ================================================================
-// TOAST
-// ================================================================
 function toast(msg, type) {
-  const el = document.createElement('div');
-  el.className = `toast toast-${type || 'default'}`;
-  el.textContent = msg;
-  document.getElementById('toast-container').appendChild(el);
+  const t = document.createElement('div');
+  t.className = `toast toast-${type || 'default'}`;
+  t.textContent = msg;
+  document.getElementById('toast-area').appendChild(t);
   setTimeout(() => {
-    el.style.animation = 'fadeOut .3s ease forwards';
-    setTimeout(() => el.remove(), 350);
-  }, 3000);
+    t.style.animation = 'fadeOut .3s ease forwards';
+    setTimeout(() => t.remove(), 350);
+  }, 3500);
+}
+// Add fadeOut keyframe dynamically
+const fadeSt = document.createElement('style');
+fadeSt.textContent = '@keyframes fadeOut{to{opacity:0;transform:translateX(20px)}}';
+document.head.appendChild(fadeSt);
+
+// =======================================================================
+// COPY HELPERS
+// =======================================================================
+function copyCode() {
+  const code = document.getElementById('wait-code').textContent.trim();
+  navigator.clipboard.writeText(code).catch(() => {});
+  toast('Room code copied!', 'success');
 }
 
-// ================================================================
-// UTIL
-// ================================================================
-function copyRoomCode(el) {
-  navigator.clipboard.writeText(el.textContent.trim()).catch(() => {});
+function copyInviteUrl() {
+  const url = document.getElementById('invite-url').value;
+  navigator.clipboard.writeText(url).catch(() => {});
+  toast('Invite link copied!', 'success');
 }
-
-// Initialise lobby screen on load
-showScreen('lobby');
 </script>
 </body>
 </html>

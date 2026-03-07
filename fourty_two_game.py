@@ -242,6 +242,12 @@ class FourtyTwo:
         """Get the current winning bid value"""
         return self._high_bid
 
+    def set_forced_bid(self, player: int, bid: int, marks: int = 1) -> None:
+        """Set the winning bid directly (used when all players pass and dealer is forced to bid)."""
+        self._high_bidder = player
+        self._high_bid    = bid
+        self._high_marks  = marks
+
     def reset_hand(self) -> None:
         """Reset all hand-level state for a new hand while preserving team marks"""
         self._trump = None
