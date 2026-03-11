@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="description" content="Texas 42 — the classic domino trick-and-trump game for 4 players. Free, open-source, real-time multiplayer."/>
+<meta property="og:title" content="42 – Texas Domino"/>
+<meta property="og:description" content="Play Texas 42 online with friends. Real-time multiplayer, emoji chat, spectator mode."/>
+<meta property="og:type" content="website"/>
+<title>42 – Texas Domino</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet"/>
+
+<style>
+/* ============================================================
+   CSS CUSTOM PROPERTIES
+============================================================ */
+:root{
+  --felt:       #1a5c38;
+  --felt-dark:  #0f3d26;
+  --bg:         #0c1f14;
+  --surface:    #0e2718;
+  --card:       #152e1c;
+  --card2:      #1b3a24;
+  --border:     #2a5038;
+  --gold:       #e8b84b;
+  --gold-light: #f5d07a;
+  --gold-dark:  #c9952a;
+  --orange:     #e07c28;
+  --success:    #3dbf6e;
+  --t1:         #4db8e8;
+  --t2:         #e87676;
+  --text:       #e8e4d8;
+  --muted:      #7fa48a;
+  --muted2:     #4a7060;
+  --ivory:      #f7f3e6;
+  --pip:        #1a1a1a;
+  --pip-red:    #cc2222;
+  --wood:       #8b6f42;
+  --radius:     10px;
+  --radius-sm:  6px;
+  --radius-lg:  16px;
+  --shadow:     0 8px 32px rgba(0,0,0,.55);
+  --shadow-sm:  0 2px 8px rgba(0,0,0,.35);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Inter',system-ui,sans-serif;
+  background:var(--bg);color:var(--text);
+  font-size:15px;line-height:1.6;
+  overflow-x:hidden;
+}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+a{color:var(--gold);text-decoration:none}a:hover{text-decoration:underline}
+
+/* ============================================================
+   LAYOUT HELPERS
+============================================================ */
+.container{max-width:1080px;margin:0 auto;padding:0 1.5rem}
+.section{padding:5rem 0}
+.section-sm{padding:3rem 0}
+.text-center{text-align:center}
+.text-muted{color:var(--muted)}
+.text-gold{color:var(--gold)}
+.text-t1{color:var(--t1)}
+.text-t2{color:var(--t2)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem}
+.flex{display:flex}.items-center{align-items:center}.justify-center{justify-content:center}
+.gap-2{gap:.6rem}.gap-3{gap:1rem}.gap-4{gap:1.5rem}
+.flex-wrap{flex-wrap:wrap}
+.w-full{width:100%}
+
+/* ============================================================
+   TYPOGRAPHY
+============================================================ */
+h1,h2,h3,h4{line-height:1.2}
+.display{font-family:'Playfair Display',serif;font-weight:900;letter-spacing:-.02em}
+.section-title{
+  font-family:'Playfair Display',serif;font-weight:700;
+  font-size:clamp(1.6rem,3vw,2.4rem);color:var(--gold);margin-bottom:.5rem;
+}
+.section-sub{font-size:1rem;color:var(--muted);margin-bottom:2.5rem;max-width:560px}
+.label{font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+
+/* ============================================================
+   BUTTONS
+============================================================ */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:.45rem;
+  padding:.65rem 1.6rem;border:none;border-radius:var(--radius);cursor:pointer;
+  font-family:inherit;font-size:.95rem;font-weight:700;letter-spacing:.01em;
+  transition:filter .15s,transform .12s,box-shadow .15s;white-space:nowrap;
+}
+.btn:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.btn:active{transform:scale(.97)}
+.btn-gold{
+  background:linear-gradient(135deg,var(--gold),var(--gold-dark));
+  color:#1a1100;box-shadow:0 2px 8px rgba(232,184,75,.3);
+}
+.btn-gold:hover{box-shadow:0 4px 18px rgba(232,184,75,.5)}
+.btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text)}
+.btn-outline:hover{border-color:var(--muted);background:var(--card)}
+.btn-lg{padding:.8rem 2.2rem;font-size:1.05rem}
+.btn-sm{padding:.45rem 1.1rem;font-size:.83rem}
+.btn-ghost{background:transparent;border:1.5px solid var(--border);color:var(--muted)}
+
+/* ============================================================
+   NAVBAR
+============================================================ */
+nav{
+  position:sticky;top:0;z-index:100;
+  background:rgba(12,31,20,.92);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  padding:.75rem 0;
+}
+.nav-inner{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:.75rem;
+}
+.nav-logo{
+  font-family:'Playfair Display',serif;font-weight:900;font-size:1.6rem;
+  color:var(--gold);letter-spacing:-.01em;
+}
+.nav-links{display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap}
+.nav-link{font-size:.88rem;font-weight:600;color:var(--muted);transition:color .15s}
+.nav-link:hover{color:var(--text);text-decoration:none}
+
+/* ============================================================
+   HERO
+============================================================ */
+.hero{
+  min-height:100vh;display:flex;align-items:center;
+  background:
+    radial-gradient(ellipse at 50% 0%,#1e5036 0%,transparent 65%),
+    radial-gradient(ellipse at 20% 80%,#0f3d26 0%,transparent 50%),
+    var(--bg);
+  position:relative;overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;inset:0;
+  background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%232a5038' fill-opacity='0.18'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  pointer-events:none;
+}
+.hero-inner{
+  position:relative;z-index:1;
+  display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:center;
+  padding:4rem 0;
+}
+.hero-title{
+  font-family:'Playfair Display',serif;font-weight:900;
+  font-size:clamp(4rem,8vw,7rem);color:var(--gold);
+  text-shadow:0 0 60px rgba(232,184,75,.35),0 4px 16px rgba(0,0,0,.5);
+  line-height:.95;margin-bottom:.6rem;
+}
+.hero-subtitle{
+  font-size:1.25rem;font-weight:600;color:var(--text);
+  margin-bottom:.5rem;letter-spacing:.01em;
+}
+.hero-desc{color:var(--muted);font-size:1.05rem;line-height:1.7;margin-bottom:2rem;max-width:420px}
+.hero-badges{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:2rem}
+.badge{
+  display:inline-flex;align-items:center;gap:.3rem;
+  background:var(--card);border:1px solid var(--border);
+  border-radius:20px;padding:.3rem .8rem;font-size:.8rem;font-weight:600;
+}
+.badge-gold{background:rgba(232,184,75,.1);border-color:rgba(232,184,75,.3);color:var(--gold)}
+
+/* ============================================================
+   DOMINO SHOWCASE (pure CSS pip dots)
+============================================================ */
+.domino-showcase{
+  display:grid;grid-template-columns:repeat(2,auto);gap:1rem;
+  justify-content:center;align-items:center;
+}
+.domino-row{display:flex;gap:.7rem;align-items:center;justify-content:center}
+
+.domino{
+  display:flex;flex-direction:row;align-items:stretch;
+  background:var(--ivory);border:2.5px solid var(--wood);
+  border-radius:10px;box-shadow:var(--shadow);overflow:hidden;
+  flex-shrink:0;
+}
+.domino-half{display:flex;align-items:center;justify-content:center;padding:4px}
+.domino-divider{width:2.5px;background:var(--wood);align-self:stretch;flex-shrink:0}
+.pip-grid{
+  display:grid;grid-template-columns:1fr 1fr 1fr;
+  grid-template-rows:1fr 1fr 1fr;gap:2px;
+}
+.pip-cell{display:flex;align-items:center;justify-content:center}
+.pip{border-radius:50%;background:var(--pip)}
+.pip-r{border-radius:50%;background:var(--pip-red)}
+
+/* large hero dominos */
+.domino-xl .domino-half{width:58px;height:58px}
+.domino-xl .pip,.domino-xl .pip-r{width:12px;height:12px}
+.domino-xl{border-width:2.5px;border-radius:10px}
+/* medium */
+.domino-lg .domino-half{width:44px;height:44px}
+.domino-lg .pip,.domino-lg .pip-r{width:9px;height:9px}
+/* small */
+.domino-sm .domino-half{width:28px;height:28px;padding:3px}
+.domino-sm .pip,.domino-sm .pip-r{width:6px;height:6px}
+.domino-sm{border-width:1.5px;border-radius:6px}
+.domino-sm .domino-divider{width:1.5px}
+
+.domino-count{border-color:#cc2222;box-shadow:0 0 0 2px rgba(204,34,34,.35),var(--shadow)}
+
+/* floating animation */
+@keyframes floatA{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-12px) rotate(-3deg)}}
+@keyframes floatB{0%,100%{transform:translateY(-8px) rotate(2deg)}50%{transform:translateY(4px) rotate(2deg)}}
+@keyframes floatC{0%,100%{transform:translateY(-4px) rotate(-1deg)}50%{transform:translateY(-16px) rotate(-1deg)}}
+.float-a{animation:floatA 4s ease-in-out infinite}
+.float-b{animation:floatB 3.5s ease-in-out infinite .5s}
+.float-c{animation:floatC 4.5s ease-in-out infinite 1s}
+
+/* ============================================================
+   CARDS
+============================================================ */
+.card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:1.75rem;
+  box-shadow:var(--shadow-sm);
+  transition:border-color .2s,transform .2s,box-shadow .2s;
+}
+.card:hover{border-color:var(--muted2);transform:translateY(-2px);box-shadow:var(--shadow)}
+.card-icon{font-size:2rem;margin-bottom:.75rem}
+.card h3{font-size:1.05rem;font-weight:700;margin-bottom:.4rem;color:var(--text)}
+.card p{font-size:.9rem;color:var(--muted);line-height:1.6}
+
+/* ============================================================
+   FEATURE SECTION (alternating)
+============================================================ */
+.feature-row{
+  display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:center;
+  margin-bottom:4rem;
+}
+.feature-row:nth-child(even){direction:rtl}
+.feature-row:nth-child(even)>*{direction:ltr}
+.feature-visual{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);
+  aspect-ratio:16/10;display:flex;align-items:center;justify-content:center;
+  position:relative;
+}
+.fv-felt{
+  background:radial-gradient(circle,var(--felt),var(--felt-dark));
+  width:100%;height:100%;display:flex;align-items:center;justify-content:center;gap:1rem;
+}
+.feature-text h3{font-size:1.5rem;font-weight:700;margin-bottom:.75rem;color:var(--text)}
+.feature-text p{font-size:.95rem;color:var(--muted);line-height:1.7;margin-bottom:1rem}
+.feature-bullets{list-style:none;padding:0;margin:.5rem 0}
+.feature-bullets li{
+  padding:.35rem 0;color:var(--muted);font-size:.9rem;
+  padding-left:1.4rem;position:relative;
+}
+.feature-bullets li::before{
+  content:'✓';position:absolute;left:0;color:var(--success);font-weight:700;
+}
+
+/* ============================================================
+   COUNT DOMINO SECTION
+============================================================ */
+.count-table-wrap{
+  display:grid;grid-template-columns:repeat(5,1fr);gap:1rem;margin:1.5rem 0;
+}
+.count-cell{
+  background:var(--card);border:1.5px solid var(--border);
+  border-radius:var(--radius);padding:1rem .75rem;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:.5rem;
+}
+.count-cell.ten{border-color:rgba(232,184,75,.4);background:rgba(232,184,75,.06)}
+.count-cell.five{border-color:rgba(61,191,110,.3);background:rgba(61,191,110,.05)}
+.count-pts{
+  font-size:1.35rem;font-weight:800;line-height:1;
+}
+.count-pts.ten{color:var(--gold)}
+.count-pts.five{color:var(--success)}
+.count-label{font-size:.7rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+
+/* ============================================================
+   RULES ACCORDION
+============================================================ */
+.rules-list{display:flex;flex-direction:column;gap:.5rem}
+details.rule-item{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius);overflow:hidden;
+  transition:border-color .15s;
+}
+details.rule-item:hover{border-color:var(--muted2)}
+details.rule-item[open]{border-color:rgba(232,184,75,.4)}
+details.rule-item summary{
+  padding:.9rem 1.25rem;font-weight:700;font-size:.95rem;
+  cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;
+  user-select:none;
+}
+details.rule-item summary::-webkit-details-marker{display:none}
+details.rule-item summary::after{
+  content:'＋';font-size:1.1rem;color:var(--muted2);transition:transform .2s;
+}
+details.rule-item[open] summary::after{content:'－';color:var(--gold)}
+.rule-body{padding:.2rem 1.25rem 1rem;color:var(--muted);font-size:.9rem;line-height:1.7}
+.rule-body strong{color:var(--text)}
+.rule-body ul{padding-left:1.2rem;margin:.4rem 0}
+.rule-body li{margin:.25rem 0}
+
+/* ============================================================
+   DEPLOY SECTION
+============================================================ */
+.deploy-note{
+  background:var(--card2);border:1px solid var(--border);border-left:4px solid var(--orange);
+  border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1.5rem;
+  font-size:.88rem;color:var(--muted);line-height:1.6;
+}
+.deploy-note strong{color:var(--text)}
+.code-block{
+  background:#0a1a0f;border:1px solid var(--border);
+  border-radius:var(--radius);padding:1rem 1.25rem;
+  font-family:'Courier New',monospace;font-size:.85rem;
+  color:#a8d8b8;line-height:1.8;overflow-x:auto;margin:.75rem 0;
+  position:relative;
+}
+.code-block .comment{color:var(--muted2)}
+.copy-btn{
+  position:absolute;top:.5rem;right:.5rem;
+  background:var(--card2);border:1px solid var(--border);
+  border-radius:6px;padding:.25rem .6rem;font-size:.72rem;
+  color:var(--muted);cursor:pointer;transition:all .15s;font-family:inherit;
+}
+.copy-btn:hover{border-color:var(--gold);color:var(--gold)}
+.deploy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-top:1.25rem}
+.deploy-card{
+  background:var(--card);border:1.5px solid var(--border);
+  border-radius:var(--radius-lg);padding:1.25rem;
+  display:flex;flex-direction:column;gap:.65rem;
+  transition:border-color .2s,box-shadow .2s;
+}
+.deploy-card:hover{border-color:var(--muted2);box-shadow:var(--shadow-sm)}
+.deploy-icon{font-size:1.75rem}
+.deploy-name{font-weight:700;font-size:.95rem}
+.deploy-desc{font-size:.82rem;color:var(--muted);line-height:1.5;flex:1}
+
+/* ============================================================
+   SCORING EXPLAINER
+============================================================ */
+.scoring-example{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:1.5rem;margin:1rem 0;
+}
+.score-row{display:flex;align-items:center;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border)}
+.score-row:last-child{border:none;font-weight:700}
+.score-label{font-size:.88rem}
+.score-val{font-size:.95rem;font-weight:700}
+.score-green{color:var(--success)}
+.score-red{color:#e84040}
+.score-gold{color:var(--gold)}
+
+/* ============================================================
+   FOOTER
+============================================================ */
+footer{
+  background:rgba(10,23,16,.95);border-top:1px solid var(--border);
+  padding:2.5rem 0;text-align:center;
+}
+.footer-logo{
+  font-family:'Playfair Display',serif;font-size:2rem;font-weight:900;
+  color:var(--gold);margin-bottom:.5rem;
+}
+.footer-links{display:flex;flex-wrap:wrap;justify-content:center;gap:1.5rem;margin:.75rem 0}
+.footer-link{font-size:.85rem;color:var(--muted);transition:color .15s}
+.footer-link:hover{color:var(--text);text-decoration:none}
+.footer-copy{font-size:.8rem;color:var(--muted2);margin-top:.75rem}
+
+/* ============================================================
+   SECTION DIVIDER
+============================================================ */
+.divider{
+  width:100%;height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);
+  margin:0;
+}
+
+/* ============================================================
+   MISC UTILITIES
+============================================================ */
+.chip{
+  display:inline-flex;align-items:center;gap:.3rem;
+  background:var(--card2);border:1px solid var(--border);
+  border-radius:20px;padding:.2rem .65rem;font-size:.78rem;font-weight:600;
+}
+.chip-gold{background:rgba(232,184,75,.12);border-color:rgba(232,184,75,.35);color:var(--gold)}
+.chip-orange{background:rgba(224,124,40,.12);border-color:rgba(224,124,40,.35);color:var(--orange)}
+.prose p{margin-bottom:.85rem;color:var(--muted);font-size:.9rem;line-height:1.7}
+.prose p:last-child{margin-bottom:0}
+.num-circle{
+  width:28px;height:28px;border-radius:50%;
+  background:rgba(232,184,75,.15);border:1.5px solid rgba(232,184,75,.4);
+  color:var(--gold);font-weight:800;font-size:.82rem;
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.step-row{display:flex;gap:.85rem;align-items:flex-start;padding:.65rem 0;border-bottom:1px solid var(--border)}
+.step-row:last-child{border:none}
+.step-text{flex:1}
+.step-title{font-weight:700;font-size:.92rem;margin-bottom:.1rem}
+.step-desc{font-size:.85rem;color:var(--muted);line-height:1.55}
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+@media(max-width:768px){
+  .hero-inner{grid-template-columns:1fr;text-align:center}
+  .hero-badges{justify-content:center}
+  .hero-desc{margin:0 auto 2rem}
+  .hero-cta{justify-content:center}
+  .domino-showcase{grid-template-columns:1fr}
+  .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+  .feature-row{grid-template-columns:1fr}
+  .feature-row:nth-child(even){direction:ltr}
+  .count-table-wrap{grid-template-columns:repeat(3,1fr)}
+  .section{padding:3.5rem 0}
+  .hero-title{font-size:5rem}
+}
+@media(max-width:480px){
+  .count-table-wrap{grid-template-columns:1fr 1fr}
+  .hero-title{font-size:4rem}
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     NAVBAR
+============================================================ -->
+<nav>
+  <div class="container">
+    <div class="nav-inner">
+      <div class="nav-logo">42</div>
+      <div class="nav-links">
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#rules" class="nav-link">Rules</a>
+        <a href="#scoring" class="nav-link">Scoring</a>
+        <a href="#deploy" class="nav-link">Deploy</a>
+        <a href="https://github.com/TuckerBrewer12/FourtyTwo" target="_blank" rel="noopener" class="btn btn-outline btn-sm">
+          ⭐ GitHub
+        </a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ============================================================
+     HERO
+============================================================ -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-inner">
+
+      <!-- Left: copy -->
+      <div>
+        <p class="label" style="margin-bottom:.5rem">Texas Domino · Double-Six · 4 Players</p>
+        <div class="hero-title">42</div>
+        <div class="hero-subtitle">The Classic Texas Trick-and-Trump Game</div>
+        <p class="hero-desc">
+          Play the beloved Texas 42 with friends online. Real-time multiplayer, pip-dot
+          dominoes, bidding, trump suits, emoji chat, and spectator mode — all in the browser.
+        </p>
+        <div class="hero-badges">
+          <span class="badge badge-gold">🃏 Double-Six Dominoes</span>
+          <span class="badge">👥 4 Players · 2 Teams</span>
+          <span class="badge">🏆 First to 250 pts Wins</span>
+          <span class="badge">🔓 Open Source</span>
+        </div>
+        <div class="flex gap-3 flex-wrap hero-cta">
+          <a href="https://github.com/TuckerBrewer12/FourtyTwo" target="_blank" rel="noopener" class="btn btn-gold btn-lg">
+            🚀 Get the Code
+          </a>
+          <a href="#deploy" class="btn btn-outline btn-lg">Deploy in 1 min →</a>
+        </div>
+      </div>
+
+      <!-- Right: floating dominoes -->
+      <div style="display:flex;align-items:center;justify-content:center;padding:2rem">
+        <div style="display:grid;grid-template-rows:auto auto auto;gap:1.5rem;align-items:center;justify-items:center">
+
+          <div style="display:flex;gap:1.2rem;align-items:flex-end">
+            <!-- 5-5 (count 10) -->
+            <div class="domino domino-xl domino-count float-a">
+              <div class="domino-half"><div class="pip-grid" id="pg-5a"></div></div>
+              <div class="domino-divider"></div>
+              <div class="domino-half"><div class="pip-grid" id="pg-5b"></div></div>
+            </div>
+            <!-- 6-4 (count 10) -->
+            <div class="domino domino-xl domino-count float-c">
+              <div class="domino-half"><div class="pip-grid" id="pg-6"></div></div>
+              <div class="domino-divider"></div>
+              <div class="domino-half"><div class="pip-grid" id="pg-4a"></div></div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:1.2rem;align-items:center">
+            <!-- 4-4 (trump double) -->
+            <div class="domino domino-xl float-b">
+              <div class="domino-half"><div class="pip-grid" id="pg-4b"></div></div>
+              <div class="domino-divider"></div>
+              <div class="domino-half"><div class="pip-grid" id="pg-4c"></div></div>
+            </div>
+            <!-- 3-2 (count 5) -->
+            <div class="domino domino-xl domino-count float-a" style="animation-delay:.8s">
+              <div class="domino-half"><div class="pip-grid" id="pg-3"></div></div>
+              <div class="domino-divider"></div>
+              <div class="domino-half"><div class="pip-grid" id="pg-2"></div></div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:1.2rem;align-items:flex-start">
+            <!-- 6-6 -->
+            <div class="domino domino-xl float-c" style="animation-delay:.4s">
+              <div class="domino-half"><div class="pip-grid" id="pg-6a"></div></div>
+              <div class="domino-divider"></div>
+              <div class="domino-half"><div class="pip-grid" id="pg-6b"></div></div>
+            </div>
+            <!-- 5-0 (count 5) -->
+            <div class="domino domino-xl domino-count float-b" style="animation-delay:.2s">
+              <div class="domino-half"><div class="pip-grid" id="pg-5c"></div></div>
+              <div class="domino-divider"></div>
+              <div class="domino-half"><div class="pip-grid" id="pg-0"></div></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============================================================
+     FEATURES GRID
+============================================================ -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="text-center" style="margin-bottom:3rem">
+      <h2 class="section-title">Everything you need to play 42 online</h2>
+      <p class="section-sub" style="margin:0 auto">
+        A complete, faithful implementation of Texas 42 — the trick-and-trump domino game invented in 1885.
+      </p>
+    </div>
+    <div class="grid-4">
+      <div class="card">
+        <div class="card-icon">🎯</div>
+        <h3>Real Pip-Dot Dominoes</h3>
+        <p>Tiles rendered with proper pip dot grids. Count tiles highlighted in red — you'll never miss a 5-counter.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <h3>Real-Time Multiplayer</h3>
+        <p>Socket.IO powers instant updates. Play with friends across the world with sub-second latency.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">👀</div>
+        <h3>Spectator Mode</h3>
+        <p>Room full? Join as a spectator and watch the hand live. Full room triggers a friendly offer to watch.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">💬</div>
+        <h3>Emoji Chat</h3>
+        <p>Chat with your table using emoji only. No trash talk — just 😂🎉🤩. Spectators can join in too.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔗</div>
+        <h3>One-Click Invite</h3>
+        <p>Share a link. Your friend clicks it, enters their name, and they're in — no account, no signup.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📊</div>
+        <h3>250-Point Scoring</h3>
+        <p>Proper rules: bid made → both teams keep their points. Bid failed → 0 for you, opponents get your bid plus theirs.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🤝</div>
+        <h3>Suit-Following Enforced</h3>
+        <p>Invalid tiles are greyed out automatically. You can only play what the rules allow — no mistakes.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📱</div>
+        <h3>Fully Responsive</h3>
+        <p>Adaptive layout for desktop, tablet, and phone. Play from any device without pinching and zooming.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============================================================
+     COUNT DOMINOES
+============================================================ -->
+<section class="section-sm" style="background:var(--surface)">
+  <div class="container">
+    <div class="text-center" style="margin-bottom:2rem">
+      <h2 class="section-title">Count Dominoes</h2>
+      <p class="section-sub" style="margin:0 auto">These 5 tiles are worth bonus points. Capture them to build your score.</p>
+    </div>
+    <div class="count-table-wrap">
+      <div class="count-cell ten">
+        <div id="cd-55" style="display:flex;gap:4px"></div>
+        <div class="count-pts ten">10 pts</div>
+        <div class="count-label">Five-Five</div>
+      </div>
+      <div class="count-cell ten">
+        <div id="cd-64" style="display:flex;gap:4px"></div>
+        <div class="count-pts ten">10 pts</div>
+        <div class="count-label">Six-Four</div>
+      </div>
+      <div class="count-cell five">
+        <div id="cd-50" style="display:flex;gap:4px"></div>
+        <div class="count-pts five">5 pts</div>
+        <div class="count-label">Five-Blank</div>
+      </div>
+      <div class="count-cell five">
+        <div id="cd-41" style="display:flex;gap:4px"></div>
+        <div class="count-pts five">5 pts</div>
+        <div class="count-label">Four-Ace</div>
+      </div>
+      <div class="count-cell five">
+        <div id="cd-32" style="display:flex;gap:4px"></div>
+        <div class="count-pts five">5 pts</div>
+        <div class="count-label">Three-Deuce</div>
+      </div>
+    </div>
+    <p class="text-center text-muted" style="font-size:.85rem;margin-top:.75rem">
+      35 total count points + 7 trick points = <strong class="text-gold">42 points per hand</strong>
+    </p>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============================================================
+     RULES ACCORDION
+============================================================ -->
+<section class="section" id="rules">
+  <div class="container">
+    <div class="grid-2" style="gap:3rem;align-items:flex-start">
+
+      <div>
+        <h2 class="section-title">How to Play</h2>
+        <p class="section-sub">Texas 42 in a nutshell. Each hand has bidding, trump selection, 7 tricks, then scoring.</p>
+
+        <div style="margin:1.5rem 0">
+          <div class="step-row">
+            <div class="num-circle">1</div>
+            <div class="step-text">
+              <div class="step-title">Deal &amp; Bid</div>
+              <div class="step-desc">Each player draws 7 tiles. Starting left of the dealer, each player bids (min 30) or passes. Highest bidder wins and picks trump.</div>
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="num-circle">2</div>
+            <div class="step-text">
+              <div class="step-title">Declare Trump</div>
+              <div class="step-desc">The high bidder privately selects a suit (0–6). All 7 tiles of that suit outrank every other tile for the hand.</div>
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="num-circle">3</div>
+            <div class="step-text">
+              <div class="step-title">Play 7 Tricks</div>
+              <div class="step-desc">Leader plays any tile. Others must follow suit if able. Highest trump (or highest lead suit) wins the trick. Trick winner leads next.</div>
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="num-circle">4</div>
+            <div class="step-text">
+              <div class="step-title">Score the Hand</div>
+              <div class="step-desc">Count tricks (1 pt each) + count domino values. If bid team meets/beats their bid, both teams keep their points. Otherwise bid team scores 0.</div>
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="num-circle">5</div>
+            <div class="step-text">
+              <div class="step-title">Win the Game</div>
+              <div class="step-desc">First team to 250 points wins. If both cross 250 on the same hand, the team that made the bid wins.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h2 class="section-title">Rules FAQ</h2>
+        <p class="section-sub">Common questions about Texas 42.</p>
+        <div class="rules-list">
+
+          <details class="rule-item">
+            <summary>What is the trump suit?</summary>
+            <div class="rule-body">
+              The player who wins the bidding round declares <strong>one suit (0–6) as trump</strong>. All 7 dominoes of that suit automatically beat any non-trump tile, regardless of the other number on the tile. The double of the trump suit is always the highest trump.
+            </div>
+          </details>
+
+          <details class="rule-item">
+            <summary>What does "follow suit" mean?</summary>
+            <div class="rule-body">
+              <ul>
+                <li>If the lead tile contains trump, everyone must play a trump tile if they have one.</li>
+                <li>Otherwise, players must play a tile with the same number as the <strong>highest end</strong> of the lead tile.</li>
+                <li>If you can't follow suit, play any tile — even trump.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="rule-item">
+            <summary>What are "Low" and "42" bids?</summary>
+            <div class="rule-body">
+              <strong>Low (0)</strong> — Your team must capture <em>no</em> count dominoes. A tricky defensive bid.<br/><br/>
+              <strong>42</strong> — Slam bid. Your team must win <em>all</em> 42 points (all tricks + all count tiles).
+            </div>
+          </details>
+
+          <details class="rule-item">
+            <summary>What if everyone passes?</summary>
+            <div class="rule-body">
+              The dealer is <strong>forced to bid 30</strong> and must play the hand. They choose trump and lead the first tile.
+            </div>
+          </details>
+
+          <details class="rule-item">
+            <summary>Which team is which?</summary>
+            <div class="rule-body">
+              Players sit across from their partner: <strong class="text-t1">P1 &amp; P3 form Team 1</strong>, and <strong class="text-t2">P2 &amp; P4 form Team 2</strong>. Partners' points combine each hand.
+            </div>
+          </details>
+
+          <details class="rule-item">
+            <summary>7-Mark variant?</summary>
+            <div class="rule-body">
+              In the simplified variant, winning a hand earns your team <strong>1 mark</strong>. First team to <strong>7 marks</strong> wins. Select this mode when creating a room.
+            </div>
+          </details>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============================================================
+     SCORING SECTION
+============================================================ -->
+<section class="section-sm" id="scoring" style="background:var(--surface)">
+  <div class="container">
+    <div class="text-center" style="margin-bottom:2rem">
+      <h2 class="section-title">Scoring Examples</h2>
+      <p class="section-sub" style="margin:0 auto">Understanding 42 scoring is the key to good strategy.</p>
+    </div>
+
+    <div class="grid-2" style="gap:1.5rem">
+
+      <!-- Example 1: bid made -->
+      <div>
+        <div class="flex items-center gap-2" style="margin-bottom:.75rem">
+          <span class="chip chip-gold">✓ Bid Made</span>
+          <span class="text-muted" style="font-size:.85rem">Team 1 bid 30, scored 35</span>
+        </div>
+        <div class="scoring-example">
+          <div class="score-row">
+            <span class="score-label">Team 1 hand score</span>
+            <span class="score-val">35 pts</span>
+          </div>
+          <div class="score-row">
+            <span class="score-label">Team 2 hand score</span>
+            <span class="score-val">7 pts</span>
+          </div>
+          <div class="score-row" style="padding-top:.75rem;margin-top:.25rem">
+            <span class="score-label">Team 1 earns</span>
+            <span class="score-val score-green">+35</span>
+          </div>
+          <div class="score-row">
+            <span class="score-label">Team 2 earns</span>
+            <span class="score-val score-green">+7</span>
+          </div>
+        </div>
+        <p class="text-muted" style="font-size:.82rem;margin-top:.5rem">Both teams keep their actual points when the bid is made.</p>
+      </div>
+
+      <!-- Example 2: bid failed -->
+      <div>
+        <div class="flex items-center gap-2" style="margin-bottom:.75rem">
+          <span class="chip chip-orange">✗ Set!</span>
+          <span class="text-muted" style="font-size:.85rem">Team 1 bid 37, scored only 35</span>
+        </div>
+        <div class="scoring-example">
+          <div class="score-row">
+            <span class="score-label">Team 1 hand score</span>
+            <span class="score-val">35 pts (bid was 37)</span>
+          </div>
+          <div class="score-row">
+            <span class="score-label">Team 2 hand score</span>
+            <span class="score-val">7 pts</span>
+          </div>
+          <div class="score-row" style="padding-top:.75rem;margin-top:.25rem">
+            <span class="score-label">Team 1 earns</span>
+            <span class="score-val score-red">+0 (set!)</span>
+          </div>
+          <div class="score-row">
+            <span class="score-label">Team 2 earns</span>
+            <span class="score-val score-green">+44 (bid 37 + their 7)</span>
+          </div>
+        </div>
+        <p class="text-muted" style="font-size:.82rem;margin-top:.5rem">Failing your bid gifts opponents your bid amount <em>plus</em> their points.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============================================================
+     HOW TO RUN / DEPLOY
+============================================================ -->
+<section class="section" id="deploy">
+  <div class="container">
+    <h2 class="section-title">Deploy &amp; Play</h2>
+    <p class="section-sub">GitHub Pages hosts this landing page. The multiplayer game needs a Python server — here's how to get it running.</p>
+
+    <div class="deploy-note">
+      <strong>⚠️ Why not GitHub Pages for the game?</strong>
+      GitHub Pages serves only static files. Texas 42 requires a real-time WebSocket server
+      (Python + Flask-SocketIO) for multiplayer communication. Run the server on any free
+      Python host or locally — it takes under a minute.
+    </div>
+
+    <!-- Local run -->
+    <h3 style="font-size:1.1rem;font-weight:700;margin:1.5rem 0 .5rem;color:var(--text)">▶ Run Locally (fastest)</h3>
+    <div class="code-block" id="code-local">
+<span class="comment"># 1. Clone the repo</span>
+git clone https://github.com/TuckerBrewer12/FourtyTwo.git
+cd FourtyTwo
+
+<span class="comment"># 2. Install Python dependencies</span>
+pip install flask flask-socketio eventlet
+
+<span class="comment"># 3. Start the server</span>
+python server/fourty_two_socketio_server.py
+
+<span class="comment"># 4. Open in browser → http://localhost:5000</span>
+      <button class="copy-btn" onclick="copyCode('code-local')">Copy</button>
+    </div>
+
+    <!-- Cloud deploy options -->
+    <h3 style="font-size:1.1rem;font-weight:700;margin:2rem 0 .5rem;color:var(--text)">☁️ Free Cloud Hosting</h3>
+    <div class="deploy-grid">
+
+      <div class="deploy-card">
+        <div class="deploy-icon">🚄</div>
+        <div class="deploy-name">Railway</div>
+        <div class="deploy-desc">Push your repo and Railway auto-detects Python. Add a <code>Procfile</code> and deploy in seconds. Generous free tier.</div>
+        <a href="https://railway.app/new/github" target="_blank" rel="noopener" class="btn btn-outline btn-sm w-full" style="text-align:center">Deploy on Railway →</a>
+      </div>
+
+      <div class="deploy-card">
+        <div class="deploy-icon">🌐</div>
+        <div class="deploy-name">Render</div>
+        <div class="deploy-desc">Connect your GitHub repo, set start command to <code>python server/fourty_two_socketio_server.py</code>. Free web services available.</div>
+        <a href="https://render.com/deploy" target="_blank" rel="noopener" class="btn btn-outline btn-sm w-full" style="text-align:center">Deploy on Render →</a>
+      </div>
+
+      <div class="deploy-card">
+        <div class="deploy-icon">☁️</div>
+        <div class="deploy-name">Fly.io</div>
+        <div class="deploy-desc">Run <code>fly launch</code> in the project root. Fly auto-detects Flask and handles WebSocket connections natively.</div>
+        <a href="https://fly.io/docs/languages-and-frameworks/python/" target="_blank" rel="noopener" class="btn btn-outline btn-sm w-full" style="text-align:center">Deploy on Fly →</a>
+      </div>
+
+      <div class="deploy-card">
+        <div class="deploy-icon">🐳</div>
+        <div class="deploy-name">Docker / VPS</div>
+        <div class="deploy-desc">The server runs on any host that supports Python 3.10+. Works great on a $5/mo VPS (DigitalOcean, Hetzner, etc.).</div>
+        <a href="https://github.com/TuckerBrewer12/FourtyTwo#readme" target="_blank" rel="noopener" class="btn btn-outline btn-sm w-full" style="text-align:center">View README →</a>
+      </div>
+
+    </div>
+
+    <!-- Procfile snippet -->
+    <h3 style="font-size:1.1rem;font-weight:700;margin:2rem 0 .5rem;color:var(--text)">📄 Procfile (for Railway / Heroku)</h3>
+    <div class="code-block" id="code-proc">
+web: python server/fourty_two_socketio_server.py
+      <button class="copy-btn" onclick="copyCode('code-proc')">Copy</button>
+    </div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============================================================
+     FOOTER
+============================================================ -->
+<footer>
+  <div class="container">
+    <div class="footer-logo">42</div>
+    <p class="text-muted" style="font-size:.88rem;margin:.25rem 0 .75rem">
+      Texas Forty-Two — invented by W. A. Thomas, Garner TX, ~1885
+    </p>
+    <div class="footer-links">
+      <a href="https://github.com/TuckerBrewer12/FourtyTwo" target="_blank" rel="noopener" class="footer-link">⭐ GitHub Repository</a>
+      <a href="https://github.com/TuckerBrewer12/FourtyTwo/issues" target="_blank" rel="noopener" class="footer-link">🐛 Report a Bug</a>
+      <a href="#rules" class="footer-link">📖 Rules</a>
+      <a href="#deploy" class="footer-link">🚀 Deploy</a>
+    </div>
+    <p class="footer-copy">Open source · MIT License · Built with Flask, Socket.IO, and vanilla JS</p>
+  </div>
+</footer>
+
+<!-- ============================================================
+     JAVASCRIPT – pip dot renderer
+============================================================ -->
+<script>
+// Pip positions by number (index 0-8 in 3×3 grid)
+const PIPS = {
+  0:[],
+  1:[4],
+  2:[2,6],
+  3:[2,4,6],
+  4:[0,2,6,8],
+  5:[0,2,4,6,8],
+  6:[0,2,3,5,6,8]
+};
+
+function fillPipGrid(id, n, red) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '';
+  const pos = PIPS[n] || [];
+  for (let i = 0; i < 9; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'pip-cell';
+    if (pos.includes(i)) {
+      const pip = document.createElement('div');
+      pip.className = red ? 'pip-r' : 'pip';
+      cell.appendChild(pip);
+    }
+    el.appendChild(cell);
+  }
+}
+
+// Small inline domino builder for count section
+function buildSmallDomino(containerId, a, b) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const isCount = ((a+b) > 0 && (a+b) % 5 === 0);
+  const dom = document.createElement('div');
+  dom.className = 'domino domino-sm' + (isCount ? ' domino-count' : '');
+
+  const h1 = document.createElement('div'); h1.className = 'domino-half';
+  const g1 = document.createElement('div'); g1.className = 'pip-grid';
+  const p1 = PIPS[a] || [];
+  for (let i = 0; i < 9; i++) {
+    const c = document.createElement('div'); c.className = 'pip-cell';
+    if (p1.includes(i)) { const p = document.createElement('div'); p.className = 'pip-r'; c.appendChild(p); }
+    g1.appendChild(c);
+  }
+  h1.appendChild(g1);
+
+  const dv = document.createElement('div'); dv.className = 'domino-divider';
+
+  const h2 = document.createElement('div'); h2.className = 'domino-half';
+  const g2 = document.createElement('div'); g2.className = 'pip-grid';
+  const p2 = PIPS[b] || [];
+  for (let i = 0; i < 9; i++) {
+    const c = document.createElement('div'); c.className = 'pip-cell';
+    if (p2.includes(i)) { const p = document.createElement('div'); p.className = 'pip-r'; c.appendChild(p); }
+    g2.appendChild(c);
+  }
+  h2.appendChild(g2);
+
+  dom.append(h1, dv, h2);
+  container.appendChild(dom);
+}
+
+// Fill hero pip grids (red pips for count tiles, black for normal)
+fillPipGrid('pg-5a', 5, true);   // 5-5 (count)
+fillPipGrid('pg-5b', 5, true);
+fillPipGrid('pg-6',  6, true);   // 6-4 (count)
+fillPipGrid('pg-4a', 4, true);
+fillPipGrid('pg-4b', 4, false);  // 4-4 (trump double, not count)
+fillPipGrid('pg-4c', 4, false);
+fillPipGrid('pg-3',  3, true);   // 3-2 (count)
+fillPipGrid('pg-2',  2, true);
+fillPipGrid('pg-6a', 6, false);  // 6-6
+fillPipGrid('pg-6b', 6, false);
+fillPipGrid('pg-5c', 5, true);   // 5-0 (count)
+fillPipGrid('pg-0',  0, true);
+
+// Count section small dominoes
+buildSmallDomino('cd-55', 5, 5);
+buildSmallDomino('cd-64', 6, 4);
+buildSmallDomino('cd-50', 5, 0);
+buildSmallDomino('cd-41', 4, 1);
+buildSmallDomino('cd-32', 3, 2);
+
+// Copy code helper
+function copyCode(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const clone = el.cloneNode(true);
+  clone.querySelector('.copy-btn')?.remove();
+  const text = clone.textContent.trim();
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById(id)?.querySelector('.copy-btn');
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 2000); }
+  }).catch(() => {});
+}
+
+// Smooth scroll for nav links
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const t = document.querySelector(a.getAttribute('href'));
+    if (t) { e.preventDefault(); t.scrollIntoView({behavior:'smooth',block:'start'}); }
+  });
+});
+</script>
+</body>
+</html>

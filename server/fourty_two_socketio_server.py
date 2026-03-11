@@ -1,192 +1,729 @@
+"""
+FourtyTwo – Real-time multiplayer Socket.IO server.
 
-from flask import Flask, request, jsonify, render_template, current_app
-from flask_socketio import SocketIO, join_room, leave_room, emit, disconnect, send, ConnectionRefusedError
+Game flow per room
+------------------
+waiting → bidding → trump_selection → playing → hand_complete / game_complete
+
+Teams: players 1 & 3 (team 1) vs players 2 & 4 (team 2).
+Dealer rotates left (clockwise) after each hand.
+Person LEFT of dealer bids first.
+
+Scoring modes
+-------------
+"points_250"  – standard: first team to 250 cumulative points wins.
+                If bid made:  both teams add their actual trick/count points.
+                If bid fails: bid team adds 0; opponents add bid + their points.
+"marks_7"     – variation: each hand awards 1 mark; first to 7 marks wins.
+"""
+
+import sys, os, uuid, logging
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from flask import Flask, render_template, request, redirect, url_for
+from flask_socketio import SocketIO, join_room as sio_join_room, leave_room as sio_leave_room, emit
 from fourty_two_game import FourtyTwo, InvalidBidError
 from domino import Domino
 
-# __name__ references this file
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
 
-socketio = SocketIO()
+_rooms: dict = {}          # room_id → GameRoom
 
-
-
-def create_app():
-    app = Flask(__name__)
-    app.config['SECRET_KEY'] = 'secret!'
-    socketio.init_app(app)
-
-    @socketio.on('connect')
-    def connect():
-        if not self.authenticate(request.args):
-            raise ConnectionRefusedError('unauthorized')
+POINTS_TO_WIN = 250
+MARKS_TO_WIN  = 7
+MAX_CHAT      = 60
 
 
-    @socketio.on('join')
-    def on_join(data):
-        username = data['username']
-        room = data['room']
-        join_room(room)
-        send('message', f'{username} has joined the room {room}', to=room)
-    
-    #request.sid for name of session ID of room
-    @socketio.on('leave')
-    def on_leave(data):
-        username = data['username']
-        room = data['room']
-        leave_room(room)
-        send('message', f'{username} has left the room {room}', to=room)
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _is_emoji_only(text: str) -> bool:
+    """Return True if text contains only emoji/unicode symbols (no ASCII letters/digits/punctuation)."""
+    text = text.strip()
+    if not text:
+        return False
+    for ch in text:
+        cp = ord(ch)
+        # Allow spaces
+        if ch == ' ':
+            continue
+        # Reject non-space printable ASCII (letters, digits, punctuation) – cp 0x21..0x7E
+        if 0x21 <= cp <= 0x7E:
+            return False
+        # Reject ASCII control characters (below 0x20) and DEL (0x7F)
+        if cp < 0x20 or cp == 0x7F:
+            return False
+    return True
 
 
-    # @app.route('/start', methods=['POST'])
-    @socketio.on('start')
-    def start():
-        current_app.game = FourtyTwo() 
-        return message("Game started")
+def _unique_room_id() -> str:
+    while True:
+        rid = str(uuid.uuid4())[:6].upper()
+        if rid not in _rooms:
+            return rid
 
-    # def bad_request(message):
-    #     return jsonify({'ok': False, 'error': message}), 400
 
-    # def message(message):
-    #     return jsonify({'ok': True, 'message': message})
-    
-    # @app.route('/')
-    # def index():
-    #     return render_template('index.html')
+# ---------------------------------------------------------------------------
+# GameRoom
+# ---------------------------------------------------------------------------
 
-    # @app.route('/hello')
-    # def hello():
-    #     return jsonify({'message': 'Hello from Python server!'})
+class GameRoom:
+    def __init__(self, room_id: str, game_mode: str = "points_250"):
+        self.room_id   = room_id
+        self.game_mode = game_mode   # "points_250" | "marks_7"
+        self.game      = FourtyTwo()
 
-    # @app.route('/health')
-    # def health():
-    #     return jsonify({"ok": True}), 200
+        # Active players
+        self.players:    dict = {}   # sid → {num, name}
+        self.sid_by_num: dict = {}   # player_num(1-4) → sid
+        self.names:      dict = {}   # player_num → display name
 
-    @app.route('/join', methods=['POST'])
-    def join():
-        data = request.get_json()
-        player_num = current_app.game.join()
-        name = data.get("name", f"Player{player_num}")
+        # Spectators
+        self.spectators: dict = {}   # sid → name
 
-        # if next_id > MAX_PLAYERS:
-        #     return jsonify({"ok": False, "error": "Game is full"}), 400
+        self.phase       = "waiting"
+        self.bid_turn    = 1
+        self.play_turn   = 1
+        self.first_move  = 1
+        self.trick_count = 0
+        self.hand_num    = 1
+        self.dealer      = 1         # rotates left (clockwise) after each hand
 
-        return jsonify({
-            "ok": True,
-            "player_num": player_num,
-            "name": name,
-            "players": current_app.game.num_players()
+        # Cumulative scores (250-point game)
+        self.team1_total = 0
+        self.team2_total = 0
+
+        # Marks (7-mark variant)
+        self.team1_marks = 0
+        self.team2_marks = 0
+
+        self.hand_history: list = []  # [{...}, ...]
+        self.chat_history: list = []  # [{name, msg, ts}, ...]
+
+        self.last_trick_winner:  int | None = None
+        self.last_trick_dominos: list = []
+
+    # ------------------------------------------------------------------
+    # Player / spectator management
+    # ------------------------------------------------------------------
+
+    def add_player(self, sid: str, name: str):
+        if len(self.players) >= 4:
+            return None, "Room is full"
+        player_num = len(self.players) + 1
+        self.players[sid] = {"num": player_num, "name": name}
+        self.sid_by_num[player_num] = sid
+        self.names[player_num] = name
+        self.game.join()
+        return player_num, None
+
+    def add_spectator(self, sid: str, name: str) -> int:
+        self.spectators[sid] = name
+        return len(self.spectators)
+
+    def remove_player(self, sid: str):
+        if sid not in self.players:
+            return None
+        pn = self.players[sid]["num"]
+        del self.players[sid]
+        self.sid_by_num.pop(pn, None)
+        return pn
+
+    def remove_spectator(self, sid: str):
+        return self.spectators.pop(sid, None)
+
+    def get_player_num(self, sid: str):
+        info = self.players.get(sid)
+        return info["num"] if info else None
+
+    def is_spectator(self, sid: str) -> bool:
+        return sid in self.spectators
+
+    def all_players_present(self) -> bool:
+        return len(self.players) == 4
+
+    # ------------------------------------------------------------------
+    # Hand lifecycle
+    # ------------------------------------------------------------------
+
+    def start_hand(self):
+        self.game.reset_hand()
+        for _ in range(4):
+            self.game.join()
+        self.game.shuffle()
+
+        # Bidding starts with person left of dealer
+        self.phase       = "bidding"
+        self.bid_turn    = self.dealer % 4 + 1
+        self.trick_count = 0
+        self.last_trick_winner  = None
+        self.last_trick_dominos = []
+
+    # ------------------------------------------------------------------
+    # State snapshot
+    # ------------------------------------------------------------------
+
+    def get_state(self, for_player: int | None = None, is_spectator: bool = False) -> dict:
+        t1, t2       = self.game.get_team_scores()
+        trick_objs   = self.game.get_trick()
+        trick_info   = [
+            {"domino": d.to_list(), "player": (self.first_move - 1 + i) % 4 + 1}
+            for i, d in enumerate(trick_objs)
+        ]
+
+        state: dict = {
+            "room_id":        self.room_id,
+            "game_mode":      self.game_mode,
+            "phase":          self.phase,
+            "hand_num":       self.hand_num,
+            "dealer":         self.dealer,
+            "players":        self.names,
+            "spectators":     list(self.spectators.values()),
+            "num_players":    len(self.players),
+            "num_spectators": len(self.spectators),
+            "bid_turn":       self.bid_turn,
+            "play_turn":      self.play_turn,
+            "first_move":     self.first_move,
+            "trick_count":    self.trick_count,
+            "trick":          trick_info,
+            "team1_score":    t1,         # this hand
+            "team2_score":    t2,
+            "team1_total":    self.team1_total,
+            "team2_total":    self.team2_total,
+            "team1_marks":    self.team1_marks,
+            "team2_marks":    self.team2_marks,
+            "high_bid":       self.game._high_bid,
+            "high_bidder":    self.game._high_bidder,
+            "high_marks":     self.game._high_marks,
+            "trump":          self.game._trump,
+            "last_trick_winner": self.last_trick_winner,
+            "chat_history":   self.chat_history[-25:],
+            "hand_history":   self.hand_history[-5:],
+        }
+
+        if for_player is not None:
+            try:
+                state["hand"] = [d.to_list() for d in self.game.get_hand(for_player)]
+            except Exception:
+                state["hand"] = []
+
+        return state
+
+    # ------------------------------------------------------------------
+    # Finish hand – proper 250-point OR 7-mark scoring
+    # ------------------------------------------------------------------
+
+    def finish_hand(self, sio: SocketIO):
+        t1, t2      = self.game.get_team_scores()
+        high_bidder = self.game._high_bidder
+        high_bid    = self.game._high_bid
+        high_marks  = self.game._high_marks
+
+        # If everyone passed → dealer is forced to bid 30
+        if high_bidder is None:
+            high_bidder = self.dealer % 4 + 1
+            high_bid    = 30
+            high_marks  = 1
+            self.game.set_forced_bid(high_bidder, high_bid, high_marks)
+
+        bid_team  = 1 if high_bidder in (1, 3) else 2
+        opp_team  = 3 - bid_team
+        bid_score = t1 if bid_team == 1 else t2
+        opp_score = t2 if bid_team == 1 else t1
+
+        # Was the bid made?
+        if high_bid == 0:         # Low bid: win by taking ZERO count tiles
+            made = bid_score <= 7
+        elif high_bid == 42:      # Slam: must capture all 42 points
+            made = bid_score == 42
+        else:
+            made = bid_score >= high_bid
+
+        # Calculate points this hand
+        if made:
+            t1_gain = t1
+            t2_gain = t2
+        else:
+            # Bidding team scores 0; opponents get bid + their actual points
+            if bid_team == 1:
+                t1_gain = 0
+                t2_gain = high_bid + opp_score
+            else:
+                t2_gain = 0
+                t1_gain = high_bid + opp_score
+
+        # Update marks (both modes track marks)
+        if made:
+            if bid_team == 1:
+                self.team1_marks += 1
+            else:
+                self.team2_marks += 1
+        else:
+            if opp_team == 1:
+                self.team1_marks += 1
+            else:
+                self.team2_marks += 1
+
+        # Update cumulative totals
+        self.team1_total += t1_gain
+        self.team2_total += t2_gain
+
+        # Record in history
+        self.hand_history.append({
+            "hand_num":   self.hand_num,
+            "bid_team":   bid_team,
+            "high_bid":   high_bid,
+            "made":       made,
+            "t1_gained":  t1_gain,
+            "t2_gained":  t2_gain,
+            "t1_total":   self.team1_total,
+            "t2_total":   self.team2_total,
         })
 
+        # Check win condition
+        if self.game_mode == "marks_7":
+            game_over = (self.team1_marks >= MARKS_TO_WIN or
+                         self.team2_marks >= MARKS_TO_WIN)
+        else:
+            game_over = (self.team1_total >= POINTS_TO_WIN or
+                         self.team2_total >= POINTS_TO_WIN)
 
-    @app.route('/bid', methods=['POST'])
-    def bid():
-        data = request.get_json()
+        # Rotate dealer
+        self.dealer = self.dealer % 4 + 1
 
-        player_num = data.get("player_num")
-        bid = data.get("bid")
-        marks = data.get("marks")
+        self.phase = "game_complete" if game_over else "hand_complete"
+
+        winner_team = None
+        if game_over:
+            if self.game_mode == "marks_7":
+                winner_team = 1 if self.team1_marks >= MARKS_TO_WIN else 2
+            else:
+                # If both crossed 250 on the same hand → bidding team wins
+                if self.team1_total >= POINTS_TO_WIN and self.team2_total >= POINTS_TO_WIN:
+                    winner_team = bid_team if made else opp_team
+                else:
+                    winner_team = 1 if self.team1_total >= POINTS_TO_WIN else 2
+
+        sio.emit("hand_complete", {
+            "bid_team":     bid_team,
+            "opp_team":     opp_team,
+            "high_bid":     high_bid,
+            "high_marks":   high_marks,
+            "made":         made,
+            "t1_this_hand": t1,
+            "t2_this_hand": t2,
+            "t1_gained":    t1_gain,
+            "t2_gained":    t2_gain,
+            "team1_total":  self.team1_total,
+            "team2_total":  self.team2_total,
+            "team1_marks":  self.team1_marks,
+            "team2_marks":  self.team2_marks,
+            "game_over":    game_over,
+            "winner_team":  winner_team,
+            "state":        self.get_state(),
+        }, room=self.room_id)
+
+
+# ---------------------------------------------------------------------------
+# App factory
+# ---------------------------------------------------------------------------
+
+def create_app(test_config=None):
+    app = Flask(__name__, template_folder="templates")
+    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "fortytwo-secret-2025")
+    if test_config:
+        app.config.update(test_config)
+
+    sio = SocketIO(app, cors_allowed_origins="*", async_mode="threading",
+                   logger=False, engineio_logger=False)
+
+    # ------------------------------------------------------------------ HTTP
+
+    @app.route("/")
+    def index():
+        return render_template("index.html")
+
+    @app.route("/join/<room_id>")
+    def invite_join(room_id):
+        """One-click invite URL – redirects to lobby with room pre-filled."""
+        return redirect(f"/?room={room_id.upper()}")
+
+    @app.route("/health")
+    def health():
+        return {"ok": True, "rooms": len(_rooms)}
+
+    @app.route("/rooms")
+    def list_rooms():
+        return {
+            "rooms": [
+                {
+                    "id":           rid,
+                    "players":      r.names,
+                    "num_players":  len(r.players),
+                    "num_spectators": len(r.spectators),
+                    "phase":        r.phase,
+                    "game_mode":    r.game_mode,
+                }
+                for rid, r in _rooms.items()
+            ]
+        }
+
+    # ------------------------------------------------------------------ Socket.IO
+
+    @sio.on("connect")
+    def on_connect():
+        logger.info("connect  sid=%s", request.sid)
+        emit("connected", {"sid": request.sid})
+
+    @sio.on("disconnect")
+    def on_disconnect():
+        sid = request.sid
+        for room_id, room in list(_rooms.items()):
+            if sid in room.players:
+                pnum = room.remove_player(sid)
+                name = room.names.get(pnum, f"P{pnum}")
+                sio.emit("player_left", {
+                    "player_num": pnum, "name": name, "state": room.get_state()
+                }, room=room_id)
+                if not room.players and not room.spectators:
+                    del _rooms[room_id]
+                break
+            elif sid in room.spectators:
+                name = room.remove_spectator(sid)
+                sio.emit("spectator_left", {"name": name, "state": room.get_state()}, room=room_id)
+                break
+
+    # ---------- lobby
+
+    @sio.on("create_room")
+    def on_create_room(data):
+        name      = (data.get("name") or "Player").strip() or "Player"
+        game_mode = data.get("game_mode", "points_250")
+        if game_mode not in ("points_250", "marks_7"):
+            game_mode = "points_250"
+
+        room_id = _unique_room_id()
+        room    = GameRoom(room_id, game_mode)
+        _rooms[room_id] = room
+
+        pnum, _ = room.add_player(request.sid, name)
+        sio_join_room(room_id)
+        logger.info("room %s created by %s (P%s) mode=%s", room_id, name, pnum, game_mode)
+
+        emit("room_joined", {
+            "room_id":    room_id,
+            "player_num": pnum,
+            "name":       name,
+            "game_mode":  game_mode,
+            "state":      room.get_state(pnum),
+        })
+
+    @sio.on("join_game")
+    def on_join_game(data):
+        name    = (data.get("name") or "Player").strip() or "Player"
+        room_id = (data.get("room_id") or "").strip().upper()
+
+        if room_id not in _rooms:
+            emit("error", {"message": f"Room '{room_id}' not found. Check the code and try again."})
+            return
+
+        room = _rooms[room_id]
+
+        if len(room.players) >= 4:
+            emit("room_full", {
+                "room_id":    room_id,
+                "num_players": len(room.players),
+                "num_spectators": len(room.spectators),
+                "message":    "This room is full (4/4 players). Would you like to spectate?",
+            })
+            return
+
+        pnum, err = room.add_player(request.sid, name)
+        if err:
+            emit("error", {"message": err})
+            return
+
+        sio_join_room(room_id)
+        sio.emit("player_joined", {
+            "player_num": pnum, "name": name, "state": room.get_state()
+        }, room=room_id)
+
+        emit("room_joined", {
+            "room_id": room_id, "player_num": pnum, "name": name,
+            "game_mode": room.game_mode, "state": room.get_state(pnum),
+        })
+
+        if room.all_players_present():
+            room.start_hand()
+            for p, s in room.sid_by_num.items():
+                sio.emit("game_started", {"state": room.get_state(p)}, room=s)
+            # notify spectators too
+            for s in room.spectators:
+                sio.emit("game_started", {"state": room.get_state()}, room=s)
+
+    @sio.on("join_spectator")
+    def on_join_spectator(data):
+        name    = (data.get("name") or "Spectator").strip() or "Spectator"
+        room_id = (data.get("room_id") or "").strip().upper()
+
+        if room_id not in _rooms:
+            emit("error", {"message": f"Room '{room_id}' not found"})
+            return
+
+        room = _rooms[room_id]
+        room.add_spectator(request.sid, name)
+        sio_join_room(room_id)
+
+        sio.emit("spectator_joined", {"name": name, "state": room.get_state()}, room=room_id)
+        emit("spectator_confirmed", {
+            "room_id":  room_id, "name": name,
+            "state":    room.get_state(is_spectator=True),
+        })
+
+    # ---------- bidding
+
+    @sio.on("bid")
+    def on_bid(data):
+        room, pnum, err = _resolve(data)
+        if err:
+            emit("error", {"message": err}); return
+        if room.phase != "bidding":
+            emit("error", {"message": "Not in bidding phase"}); return
+        if room.bid_turn != pnum:
+            emit("error", {"message": f"Not your turn to bid (it is P{room.bid_turn})"}); return
+
+        bid_val = data.get("bid")
+        marks   = data.get("marks", 1) or 1
 
         try:
-            current_app.game.bid(player_num, bid, marks)
+            room.game.bid(pnum, bid_val, marks)
         except InvalidBidError:
-            return bad_request(message="Invalid bid")
-        
-        if current_app.game.num_bids() == 4:
-            player_num, high_bid, high_marks = current_app.game.get_high_bid()
-            return jsonify({
-                "ok": True,
-                "bid": high_bid,
-                "marks": high_marks,
-                "player_num": player_num
-            })
-        return message("Bid request received")
-    
-    @app.route('/get_high_bid', methods=['GET'])
-    def get_high_bid():
-        player_num, high_bid, high_marks = current_app.game.get_high_bid()
-        return jsonify({
-            "ok": True,
-            "bid": high_bid,
-            "marks": high_marks,
-            "player_num": player_num
-        })
+            emit("error", {"message": "Invalid bid – must beat the current high bid"}); return
 
-    @app.route('/shuffle', methods=['POST'])
-    def shuffle():
-        if current_app.game.num_players() != 4:
-            return bad_request("Game is not full")
+        room.bid_turn = room.bid_turn % 4 + 1
+        bids_placed   = len(room.game._bids)
 
-        current_app.game.shuffle()
-        return message("Shuffle request received")
+        sio.emit("bid_placed", {
+            "player_num":  pnum,
+            "bid":         bid_val,
+            "marks":       marks,
+            "bid_turn":    room.bid_turn,
+            "bids_placed": bids_placed,
+            "high_bid":    room.game._high_bid,
+            "high_bidder": room.game._high_bidder,
+            "high_marks":  room.game._high_marks,
+        }, room=room.room_id)
 
-    @app.route('/test_shuffle', methods=['POST'])
-    def test_shuffle():
-        if current_app.game.num_players() != 4:
-            return bad_request("Game is not full")
-        current_app.game._deal_dominoes()
-        return message("Shuffle request received")
+        if bids_placed == 4:
+            hb, hbid, hm = room.game._high_bidder, room.game._high_bid, room.game._high_marks
+            # Everyone passed → forced dealer bid 30
+            if hb is None:
+                hb   = room.dealer % 4 + 1
+                hbid = 30
+                hm   = 1
+                room.game.set_forced_bid(hb, hbid, hm)
 
+            room.phase      = "trump_selection"
+            room.first_move = hb
+            room.play_turn  = hb
 
-    @app.route('/play', methods=['POST'])
-    def play():
-        data = request.get_json()
+            sio.emit("bidding_complete", {
+                "high_bidder": hb, "high_bid": hbid, "high_marks": hm,
+                "state": room.get_state(),
+            }, room=room.room_id)
 
-        player_num = data['player_num']
-        move = Domino(data['move'])
-        result = current_app.game.play(player_num, move)
+    # ---------- trump selection
 
-        if result == True:
-            return message("Play Valid")
+    @sio.on("set_trump")
+    def on_set_trump(data):
+        room, pnum, err = _resolve(data)
+        if err:
+            emit("error", {"message": err}); return
+        if room.phase != "trump_selection":
+            emit("error", {"message": "Not in trump-selection phase"}); return
+        if pnum != room.game._high_bidder:
+            emit("error", {"message": "Only the high bidder sets trump"}); return
+
+        trump = data.get("trump")
+        if trump is not None and (not isinstance(trump, int) or not (0 <= trump <= 6)):
+            emit("error", {"message": "Trump must be 0–6 or null"}); return
+
+        room.game.set_trump(trump)
+        room.phase      = "playing"
+        room.trick_count = 0
+
+        sio.emit("trump_set", {
+            "trump": trump, "first_move": room.first_move, "state": room.get_state()
+        }, room=room.room_id)
+        _push_turn(room, sio)
+
+    # ---------- playing
+
+    @sio.on("play")
+    def on_play(data):
+        room, pnum, err = _resolve(data)
+        if err:
+            emit("error", {"message": err}); return
+        if room.phase != "playing":
+            emit("error", {"message": "Not in playing phase"}); return
+        if room.play_turn != pnum:
+            emit("error", {"message": f"Not your turn (it is P{room.play_turn})"}); return
+
+        raw = data.get("domino")
+        if not isinstance(raw, (list, tuple)) or len(raw) != 2:
+            emit("error", {"message": "domino must be [a, b]"}); return
+
+        domino = Domino(raw)
+
+        # ---- Suit-following validation ----
+        trick_objs = room.game.get_trick()
+        if trick_objs:
+            lead    = trick_objs[0]
+            trump   = room.game._trump
+            lead_suit = trump if (trump is not None and lead.contains(trump)) else lead.high_side()
+            hand    = room.game.get_hand(pnum)
+            has_suit = any(d.contains(lead_suit) for d in hand)
+            if has_suit and not domino.contains(lead_suit):
+                emit("error", {"message": f"You must follow suit ({lead_suit}s)"}); return
+
+        success = room.game.play(pnum, domino)
+        if not success:
+            emit("error", {"message": "That domino is not in your hand"}); return
+
+        trick_objs = room.game.get_trick()
+        trick_snap = [
+            {"domino": d.to_list(), "player": (room.first_move - 1 + i) % 4 + 1}
+            for i, d in enumerate(trick_objs)
+        ]
+
+        sio.emit("domino_played", {
+            "player_num": pnum, "domino": raw, "trick": trick_snap
+        }, room=room.room_id)
+
+        if len(trick_objs) == 4:
+            winner      = room.game.get_trick_winner()
+            trick_score = room.game.trick_score()
+            room.game.set_winner(winner)
+
+            room.last_trick_winner  = winner
+            room.last_trick_dominos = [d.to_list() for d in trick_objs]
+            room.trick_count       += 1
+            room.first_move         = winner
+            room.play_turn          = winner
+
+            t1, t2 = room.game.get_team_scores()
+            sio.emit("trick_complete", {
+                "winner":        winner,
+                "winner_name":   room.names.get(winner, f"P{winner}"),
+                "team":          1 if winner % 2 == 1 else 2,
+                "trick_score":   trick_score,
+                "trick_dominos": room.last_trick_dominos,
+                "team1_score":   t1,
+                "team2_score":   t2,
+                "team1_total":   room.team1_total,
+                "team2_total":   room.team2_total,
+                "trick_count":   room.trick_count,
+            }, room=room.room_id)
+
+            if room.trick_count == 7:
+                room.finish_hand(sio)
+            else:
+                _push_turn(room, sio)
         else:
-            return bad_request("Invalid move")
+            room.play_turn = room.play_turn % 4 + 1
+            _push_turn(room, sio)
 
-    @app.route('/set_trump', methods=['POST'])
-    def set_trump():
-        data = request.get_json()
-        trump = data['trump']
-        current_app.game.set_trump(trump)
-        return message("Trump set")
+    # ---------- chat (emoji only)
 
-    #get hand 
-    @app.route('/get_hand', methods=['POST'])
-    def get_hand():
-        data = request.get_json()
-        player_num = data['player_num']
-        hand = current_app.game.get_hand(player_num)
-        return jsonify({'hand': domino_set_to_json(hand)})
+    @sio.on("send_chat")
+    def on_send_chat(data):
+        room_id = (data.get("room_id") or "").strip().upper()
+        if room_id not in _rooms:
+            return
+        room = _rooms[room_id]
+        sid  = request.sid
 
-    @app.route('/get_trick', methods=['POST'])
-    def get_trick():
-        data = request.get_json()
-        trick = current_app.game.get_trick()
-        return jsonify({'trick': domino_set_to_json(trick)})
-    
+        # Identify sender
+        is_spec   = room.is_spectator(sid)
+        pnum      = room.get_player_num(sid)
+        if pnum is None and not is_spec:
+            return  # not in room
 
-    @app.route('/get_winner', methods=['POST'])
-    def get_winner():
-        if len(current_app.game.get_trick()) != 4:
-            return bad_request("Trick is not complete")
+        msg = (data.get("message") or "").strip()
+        if not _is_emoji_only(msg):
+            emit("error", {"message": "Chat supports emoji only 😊"}); return
 
-        trick = current_app.game.get_trick()
-        winner = current_app.game.get_trick_winner()
-        current_app.game.set_winner(winner)
+        if pnum:
+            sender = room.names.get(pnum, f"P{pnum}")
+        else:
+            sender = room.spectators.get(sid, "Spectator")
 
-        return jsonify({'trick': domino_set_to_json(trick), 'winner': winner,
-        'team1_score': current_app.game.get_team_scores()[0], 'team2_score': current_app.game.get_team_scores()[1]})
+        entry = {"sender": sender, "msg": msg, "spectator": is_spec}
+        room.chat_history.append(entry)
+        if len(room.chat_history) > MAX_CHAT:
+            room.chat_history = room.chat_history[-MAX_CHAT:]
 
-    return app
+        sio.emit("chat_message", entry, room=room_id)
 
-    
-    #get score
-    #get winner 
-    #get team1 score
-    #get team2 score 
+    # ---------- utilities
 
-def domino_set_to_json(hand):
-    def domino_to_list(domino):
-        return domino.to_list()
-    return [domino_to_list(domino) for domino in hand]
+    @sio.on("request_state")
+    def on_request_state(data):
+        room_id = (data.get("room_id") or "").upper()
+        if room_id not in _rooms:
+            emit("error", {"message": "Room not found"}); return
+        room  = _rooms[room_id]
+        pnum  = room.get_player_num(request.sid)
+        is_sp = room.is_spectator(request.sid)
+        emit("game_state", room.get_state(pnum, is_spectator=is_sp))
+
+    @sio.on("new_hand")
+    def on_new_hand(data):
+        room_id = (data.get("room_id") or "").upper()
+        if room_id not in _rooms:
+            emit("error", {"message": "Room not found"}); return
+        room = _rooms[room_id]
+        if room.phase not in ("hand_complete", "game_complete"):
+            emit("error", {"message": "Hand is not yet complete"}); return
+
+        room.hand_num += 1
+        room.start_hand()
+
+        for p, s in room.sid_by_num.items():
+            sio.emit("game_started", {"state": room.get_state(p)}, room=s)
+        for s in room.spectators:
+            sio.emit("game_started", {"state": room.get_state()}, room=s)
+
+    # ------------------------------------------------------------------ helpers
+
+    def _resolve(data):
+        room_id = (data.get("room_id") or "").strip().upper()
+        if room_id not in _rooms:
+            return None, None, f"Room '{room_id}' not found"
+        room = _rooms[room_id]
+        pnum = room.get_player_num(request.sid)
+        if pnum is None:
+            return None, None, "You are not a player in this room"
+        return room, pnum, None
+
+    def _push_turn(room: GameRoom, sio: SocketIO):
+        for pnum, psid in room.sid_by_num.items():
+            is_turn = pnum == room.play_turn
+            try:
+                hand = [d.to_list() for d in room.game.get_hand(pnum)]
+            except Exception:
+                hand = []
+            sio.emit("your_turn" if is_turn else "waiting", {
+                "hand": hand, "play_turn": room.play_turn,
+                "action": "play" if is_turn else "wait",
+            }, room=psid)
+
+    return app, sio
 
 
-if __name__ == '__main__':
-    create_app().run(port = 5000, debug=True)
+if __name__ == "__main__":
+    app, sio = create_app()
+    sio.run(app, host="0.0.0.0", port=5000, debug=True, allow_unsafe_werkzeug=True)

@@ -171,9 +171,6 @@ class FourtyTwo:
             self._team2_score += self.trick_score()
         self._trick = []
     
-    def clear_trick(self) -> None:
-        self._trick = []
-
     def get_trick_winner(self, trick: list['Domino'] = None, first_move: int = None) -> int:
         """
         Decides the winner of the trick
@@ -236,6 +233,42 @@ class FourtyTwo:
     def clear_trick(self) -> None:
         """Clear the current trick"""
         self._trick = []
+
+    def deal_dominoes(self) -> None:
+        """Deal dominoes to players (alias for shuffle for backward compatibility)"""
+        self.shuffle()
+
+    def get_bid(self) -> int:
+        """Get the current winning bid value"""
+        return self._high_bid
+
+    def set_forced_bid(self, player: int, bid: int, marks: int = 1) -> None:
+        """Set the winning bid directly (used when all players pass and dealer is forced to bid)."""
+        self._high_bidder = player
+        self._high_bid    = bid
+        self._high_marks  = marks
+
+    def reset_hand(self) -> None:
+        """Reset all hand-level state for a new hand while preserving team marks"""
+        self._trump = None
+        self._trick = []
+        self._first_move = 1
+        self._winner = 1
+        self._join_calls = 0
+        self.domino_set = DominoesSet()
+        self.player_hands = [[], [], [], []]
+        self._bids = {}
+        self._high_bid = -1
+        self._high_bidder = None
+        self._high_marks = 1
+        self._bid = -1
+        self._player1 = Player(1)
+        self._player2 = Player(2)
+        self._player3 = Player(3)
+        self._player4 = Player(4)
+        self._players = [self._player1, self._player2, self._player3, self._player4]
+        self._team1_score = 0
+        self._team2_score = 0
 
 
 
