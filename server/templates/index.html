@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"/>
 <title>42 – Texas Domino</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet"/>
@@ -728,23 +728,111 @@ button{font-family:inherit;cursor:pointer}
 /* =====================================================================
    RESPONSIVE TWEAKS
 ===================================================================== */
+/* =====================================================================
+   MOBILE — phones (≤ 600px wide)
+===================================================================== */
 @media(max-width:600px){
-  .domino-xl .domino-half{width:46px;height:46px}
-  .domino-xl .pip{width:9px;height:9px}
-  .domino-lg .domino-half{width:36px;height:36px}
-  .domino-lg .pip{width:7px;height:7px}
+
+  /* --- Header: compact, single row --- */
+  #game-header{padding:.3rem .5rem;gap:.25rem;flex-wrap:nowrap}
+  .hdr-title{font-size:.95rem}
+  #hdr-hand,#hdr-tricks{font-size:.65rem;padding:.15rem .4rem}
+  #hdr-trump{font-size:.65rem;padding:.15rem .4rem}
+  .score-block{padding:.2rem .45rem;gap:.3rem}
+  .score-val{font-size:.85rem}
+  .score-total{display:none}          /* hide "X total" label on mobile */
+  #hdr-clock{display:none}            /* clock too cramped on phone */
+
+  /* --- Board: tighter side columns, taller rows --- */
   #game-board{
-    grid-template-columns:70px 1fr 70px;
-    grid-template-rows:80px 1fr 80px;
+    grid-template-columns:60px 1fr 60px;
+    grid-template-rows:72px 1fr 72px;
   }
-  .pzone-name{font-size:.7rem;padding:.15rem .4rem;max-width:64px}
-  #chat-panel{width:240px}
-  .bid-grid{grid-template-columns:repeat(4,1fr)}
-  .trump-grid{grid-template-columns:repeat(4,1fr)}
+  .pzone-name{font-size:.68rem;padding:.15rem .35rem;max-width:58px}
+  .tile-count-badge{font-size:.65rem;padding:.08rem .35rem}
+
+  /* --- Trick center --- */
+  #tc-mid{width:46px;height:46px;font-size:.65rem}
+
+  /* --- Dominos in trick: smaller --- */
+  .domino-md .domino-half{width:28px;height:28px;padding:2px}
+  .domino-md .pip{width:5px;height:5px}
+
+  /* --- Hand area: horizontal scroll row, bigger touch targets --- */
+  #hand-area{padding:.45rem .3rem .5rem}
+  #hand-label{font-size:.65rem}
+  #hand-dominoes{
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    overflow-y:visible;
+    justify-content:flex-start;
+    padding:.25rem .4rem .5rem;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+    gap:.35rem;
+    width:100%;
+  }
+  #hand-dominoes::-webkit-scrollbar{display:none}
+
+  /* Domino xl — keep large enough for fingers */
+  .domino-xl .domino-half{width:44px;height:44px;padding:4px}
+  .domino-xl .pip{width:9px;height:9px}
+  .domino-xl{border-radius:9px}
+
+  /* --- Modals: nearly full screen --- */
+  .modal-overlay{padding:.4rem;align-items:flex-end}
+  .modal-box{
+    max-width:100%;border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+    padding:1.25rem 1rem;max-height:90vh;overflow-y:auto;
+  }
+  .modal-box h3{font-size:1.05rem}
+
+  /* Bid grid: 4 cols on mobile */
+  .bid-grid{grid-template-columns:repeat(4,1fr);gap:.3rem}
+  .bid-tile{font-size:.8rem;padding:.45rem .2rem}
+
+  /* Trump grid: 4 cols */
+  .trump-grid{grid-template-columns:repeat(4,1fr);gap:.35rem}
+  .trump-num{font-size:1.3rem}
+  .trump-name{font-size:.6rem}
+
+  /* Hand peek in modals: smaller tiles */
+  .hand-peek-row .domino-sm .domino-half{width:20px;height:20px}
+  .hand-peek-row .domino-sm .pip{width:4px;height:4px}
+
+  /* --- Chat: full width overlay on mobile --- */
+  #chat-panel{width:100%;border-left:none;border-top:1px solid var(--border)}
+  #chat-toggle{right:.5rem;bottom:calc(var(--hand-h,110px) + .5rem);width:40px;height:40px;font-size:1.05rem}
+
+  /* --- Lobby / waiting: tighter padding --- */
+  .panel{padding:1.35rem 1.1rem}
+  .lobby-wrap{max-width:100%}
+  .game-logo{font-size:3.5rem}
+  .waiting-wrap{max-width:100%}
+
+  /* --- Countdown: wider on mobile --- */
+  #bid-countdown{width:88%;padding:1.2rem 1.5rem}
+  .cd-number{font-size:3rem}
+
+  /* --- Result modal --- */
+  .result-scores{grid-template-columns:1fr 1fr;gap:.4rem}
+  .rc-pts{font-size:1.4rem}
+
+  /* --- Game over --- */
+  .final-scores-grid{grid-template-columns:1fr 1fr;gap:.5rem}
+  .final-pts{font-size:2rem}
+
+  /* --- Status bar --- */
+  #game-status{font-size:.8rem;padding:.35rem .75rem}
 }
-@media(max-height:700px){
-  #hand-area{padding:.35rem .4rem .4rem}
-  #game-header{padding:.3rem .6rem}
+
+/* Short phones (landscape or small height) */
+@media(max-height:680px){
+  #hand-area{padding:.3rem .3rem .35rem}
+  #game-header{padding:.25rem .5rem}
+  #game-board{grid-template-rows:60px 1fr 60px}
+  .domino-xl .domino-half{width:38px;height:38px;padding:3px}
+  .domino-xl .pip{width:8px;height:8px}
 }
 
 /* =====================================================================
@@ -766,6 +854,55 @@ button{font-family:inherit;cursor:pointer}
   70%{transform:scale(.98)}
   100%{transform:scale(1)}
 }
+
+/* =====================================================================
+   CLOCK
+===================================================================== */
+#hdr-clock{
+  font-size:.78rem;font-weight:600;color:var(--muted);
+  font-variant-numeric:tabular-nums;letter-spacing:.03em;
+  min-width:52px;text-align:right;
+}
+
+/* =====================================================================
+   BIDDING COUNTDOWN
+===================================================================== */
+#bid-countdown{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  z-index:90;background:rgba(12,31,20,.97);border:2px solid var(--gold);
+  border-radius:var(--radius-lg);padding:1.5rem 2.5rem;text-align:center;
+  box-shadow:var(--shadow);pointer-events:none;
+}
+.cd-label{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.3rem}
+.cd-number{font-size:3.5rem;font-weight:900;color:var(--gold);line-height:1;font-variant-numeric:tabular-nums}
+.cd-hand-reminder{font-size:.75rem;color:var(--muted);margin-top:.4rem}
+
+/* =====================================================================
+   HAND PEEK (inside bid / trump modals)
+===================================================================== */
+.hand-peek{margin-top:.75rem;padding-top:.6rem;border-top:1px solid var(--border)}
+.hand-peek-label{font-size:.7rem;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.4rem}
+.hand-peek-row{display:flex;gap:.3rem;flex-wrap:wrap;justify-content:center;max-height:80px;overflow-x:auto}
+
+/* =====================================================================
+   CHAT QUICK REACTIONS
+===================================================================== */
+.chat-quick-reactions{
+  padding:.4rem .75rem .2rem;border-top:1px solid var(--border);flex-shrink:0;
+}
+.reaction-label{font-size:.65rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem}
+.reaction-row{display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.25rem}
+.reaction-btn{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);
+  color:var(--text);padding:.25rem .45rem;font-size:.95rem;cursor:pointer;
+  transition:all var(--trans);line-height:1;
+}
+.reaction-btn:hover{border-color:var(--gold);background:var(--card2)}
+.reaction-phrase{
+  font-size:.72rem;padding:.25rem .55rem;font-weight:600;color:var(--muted);
+  font-family:inherit;
+}
+.reaction-phrase:hover{color:var(--gold);border-color:var(--gold)}
 </style>
 </head>
 <body>
@@ -774,6 +911,13 @@ button{font-family:inherit;cursor:pointer}
      TOAST CONTAINER
 ===================================================================== -->
 <div id="toast-area"></div>
+
+<!-- Bidding countdown overlay -->
+<div id="bid-countdown" class="hidden">
+  <div class="cd-label">Look at your hand — bidding starts in</div>
+  <div class="cd-number" id="cd-num">10</div>
+  <div class="cd-hand-reminder">Check your dominoes below ↓</div>
+</div>
 
 <!-- =====================================================================
      SCREEN: LOBBY (create / direct join)
@@ -940,6 +1084,7 @@ button{font-family:inherit;cursor:pointer}
         </div>
       </div>
       <button class="btn btn-ghost btn-icon" onclick="showRules()" title="Rules">📖</button>
+      <span id="hdr-clock"></span>
     </div>
   </div>
 
@@ -1030,12 +1175,33 @@ button{font-family:inherit;cursor:pointer}
     <button class="btn btn-ghost btn-sm" onclick="toggleChat()">✕</button>
   </div>
   <div id="chat-messages"></div>
+  <div class="chat-quick-reactions">
+    <div class="reaction-label">Quick Reactions</div>
+    <div class="reaction-row">
+      <button class="reaction-btn" onclick="sendQuick('👍')">👍</button>
+      <button class="reaction-btn" onclick="sendQuick('👏')">👏</button>
+      <button class="reaction-btn" onclick="sendQuick('🎉')">🎉</button>
+      <button class="reaction-btn" onclick="sendQuick('🔥')">🔥</button>
+      <button class="reaction-btn" onclick="sendQuick('😂')">😂</button>
+      <button class="reaction-btn" onclick="sendQuick('😬')">😬</button>
+      <button class="reaction-btn" onclick="sendQuick('🤯')">🤯</button>
+      <button class="reaction-btn" onclick="sendQuick('💀')">💀</button>
+    </div>
+    <div class="reaction-row">
+      <button class="reaction-btn reaction-phrase" onclick="sendQuick('Nice Play!')">Nice Play!</button>
+      <button class="reaction-btn reaction-phrase" onclick="sendQuick('Good Bid!')">Good Bid!</button>
+      <button class="reaction-btn reaction-phrase" onclick="sendQuick('Oops!')">Oops!</button>
+      <button class="reaction-btn reaction-phrase" onclick="sendQuick('Let\'s Go!')">Let's Go!</button>
+      <button class="reaction-btn reaction-phrase" onclick="sendQuick('Lucky!')">Lucky!</button>
+      <button class="reaction-btn reaction-phrase" onclick="sendQuick('GG!')">GG!</button>
+    </div>
+  </div>
   <div class="chat-input-area">
     <div class="chat-input-row">
       <input id="chat-input" class="emoji-input" type="text" placeholder="Emoji only…" maxlength="40"/>
       <button class="btn btn-gold btn-sm" onclick="sendChat()">Send</button>
     </div>
-    <p class="emoji-hint">Only emoji are allowed 😊🎉</p>
+    <p class="emoji-hint">Emoji or quick reactions above 😊🎉</p>
   </div>
 </div>
 
@@ -1056,6 +1222,10 @@ button{font-family:inherit;cursor:pointer}
       <button class="btn btn-gold" onclick="submitBid()">Submit Bid</button>
       <button class="btn btn-outline" onclick="submitPass()">Pass</button>
     </div>
+    <div class="hand-peek">
+      <div class="hand-peek-label">Your Hand</div>
+      <div class="hand-peek-row" id="bid-hand-peek-row"></div>
+    </div>
   </div>
 </div>
 
@@ -1070,6 +1240,10 @@ button{font-family:inherit;cursor:pointer}
     <p class="text-xs text-muted" style="margin-top:.35rem">Trump dominoes rank higher than all other dominoes, regardless of their other number.</p>
     <div style="margin-top:.75rem">
       <button class="btn btn-gold" onclick="submitTrump()">Set Trump</button>
+    </div>
+    <div class="hand-peek">
+      <div class="hand-peek-label">Your Hand</div>
+      <div class="hand-peek-row" id="trump-hand-peek-row"></div>
     </div>
   </div>
 </div>
@@ -1267,6 +1441,8 @@ let unreadChat  = 0;
 let chatOpen    = false;
 let pendingRoom = null;   // for spectator offer flow
 let inviteRoomCode = null;
+let pendingPlay = null;   // [a,b] domino optimistically removed, restored on error
+let countdownTimer = null;
 
 const SUIT_NAMES = ['Blanks','Aces','Deuces','Treys','Fours','Fives','Sixes'];
 
@@ -1358,8 +1534,9 @@ function ensureSocket() {
   socket.on('waiting',            onWaiting);
   socket.on('game_state',         d => { gameState = d; applyState(d); });
   socket.on('player_left',        d => toast(`${d.name} left the game`, 'info'));
+  socket.on('game_abandoned',     onGameAbandoned);
   socket.on('chat_message',       onChatMessage);
-  socket.on('error',              d => toast(d.message || 'Error', 'error'));
+  socket.on('error',              onServerError);
 }
 
 // =======================================================================
@@ -1459,13 +1636,13 @@ function onGameStarted(d) {
   if (d.state.hand) myHand = d.state.hand;
   gameState = d.state;
   showScreen('game');
-  if (!isSpectator) document.getElementById('chat-toggle').classList.remove('hidden');
   document.getElementById('chat-toggle').classList.remove('hidden');
   applyState(d.state);
-  setStatus(`Hand ${d.state.hand_num} — Bidding starts with P${d.state.bid_turn}`);
-  if (!isSpectator && d.state.phase === 'bidding' && d.state.bid_turn === myPNum) {
-    showBidModal(d.state);
-  }
+  const shouldBid = !isSpectator && d.state.phase === 'bidding' && d.state.bid_turn === myPNum;
+  startBiddingCountdown(10, () => {
+    setStatus(`Hand ${d.state.hand_num} — Bidding starts with P${d.state.bid_turn}`);
+    if (shouldBid) showBidModal(d.state);
+  });
 }
 
 function onBidPlaced(d) {
@@ -1479,6 +1656,8 @@ function onBidPlaced(d) {
 }
 
 function onBiddingComplete(d) {
+  // Always dismiss the bid modal — it may have opened right before this event
+  document.getElementById('modal-bid').classList.add('hidden');
   const bs = d.high_bid === 0 ? `Low (${d.high_marks}m)` :
              d.high_bid === 42 ? `42 (${d.high_marks}m)` : d.high_bid;
   toast(`P${d.high_bidder} won the bid: ${bs}`);
@@ -1518,6 +1697,7 @@ function onWaiting(d) {
 }
 
 function onDominoPlayed(d) {
+  pendingPlay = null; // server confirmed the play
   renderTrick(d.trick);
   updateZoneCounts(gameState);
 }
@@ -1584,29 +1764,46 @@ function renderHand(playable) {
 
 /**
  * Returns the subset of `hand` that are valid to play given the current `trick`.
- * Suit-following rules (mirror of server-side enforcement):
- *  1. If no trick has been started yet, any domino may be led.
- *  2. If trump was led (either end of lead tile is trump), everyone must follow
- *     trump if they hold any trump tile.
- *  3. Otherwise, the lead suit is the higher end of the lead tile; players
- *     must follow that suit if they have it.
- *  4. If a player cannot follow suit, they may play any tile (including trump).
+ * Mirrors server-side suit-following logic (Bug 7 fix included):
+ *  1. If no trick has started, any domino may be led.
+ *  2. If trump was led, everyone must follow trump if they hold any trump tile.
+ *     Trump dominoes (containing the trump number) do NOT count as the lead suit
+ *     when a non-trump suit is led.
+ *  3. Otherwise lead suit = higher end of lead tile (excluding trump); must follow
+ *     with a non-trump domino of that suit if possible.
+ *  4. If unable to follow suit, any domino may be played.
  */
 function getValidPlays(hand, trump, trick) {
   if (!trick || trick.length === 0) return hand;
   const lead = trick[0].domino;
-  const leadSuit = (trump !== null && trump !== undefined && (lead[0] === trump || lead[1] === trump))
-    ? trump
-    : Math.max(lead[0], lead[1]);
-  const hasSuit = hand.some(([a,b]) => a === leadSuit || b === leadSuit);
-  return hasSuit ? hand.filter(([a,b]) => a === leadSuit || b === leadSuit) : hand;
+  const hasTrump = trump !== null && trump !== undefined;
+  const leadIsTrump = hasTrump && (lead[0] === trump || lead[1] === trump);
+  const leadSuit = leadIsTrump ? trump : Math.max(lead[0], lead[1]);
+
+  if (leadSuit === trump) {
+    // Trump was led — must follow with any trump tile
+    const hasTrumpTile = hand.some(([a,b]) => a === trump || b === trump);
+    return hasTrumpTile ? hand.filter(([a,b]) => a === trump || b === trump) : hand;
+  } else {
+    // Non-trump led — only non-trump dominoes of lead suit count
+    const hasNonTrumpSuit = hand.some(([a,b]) =>
+      (a === leadSuit || b === leadSuit) && !(hasTrump && (a === trump || b === trump))
+    );
+    return hasNonTrumpSuit
+      ? hand.filter(([a,b]) =>
+          (a === leadSuit || b === leadSuit) && !(hasTrump && (a === trump || b === trump))
+        )
+      : hand;
+  }
 }
 
 function playDomino(a, b) {
   if (!myTurn || isSpectator) return;
+  // Optimistically remove from hand — restored on server error
+  pendingPlay = [a, b];
   socket.emit('play', { room_id: myRoom, domino: [a, b] });
   myTurn = false;
-  const idx = myHand.findIndex(([da,db]) => da===a && db===b);
+  const idx = myHand.findIndex(([da,db]) => (da===a && db===b) || (da===b && db===a));
   if (idx >= 0) myHand.splice(idx, 1);
   renderHand(false);
   setStatus('Domino played — waiting for others…');
@@ -1745,6 +1942,7 @@ function showBidModal(state) {
   addBidTile(grid, '42',  42, true);
 
   document.getElementById('modal-bid').classList.remove('hidden');
+  renderHandPeek('bid-hand-peek-row');
 }
 
 function addBidTile(grid, label, val, special) {
@@ -1798,8 +1996,9 @@ function showTrumpModal(d) {
     t.onclick = () => selectTrump(i, t);
     grid.appendChild(t);
   }
-  // Show the hand dominoes as reference
+  document.getElementById('modal-bid').classList.add('hidden'); // ensure bid modal is gone
   document.getElementById('modal-trump').classList.remove('hidden');
+  renderHandPeek('trump-hand-peek-row');
 }
 
 function selectTrump(val, el) {
@@ -1962,14 +2161,6 @@ function appendChatMsg(d) {
   msgs.scrollTop = msgs.scrollHeight;
 }
 
-function sendChat() {
-  const inp = document.getElementById('chat-input');
-  const msg = inp.value.trim();
-  if (!msg) return;
-  socket.emit('send_chat', { room_id: myRoom, message: msg });
-  inp.value = '';
-}
-
 // =======================================================================
 // RULES MODAL
 // =======================================================================
@@ -2012,6 +2203,106 @@ function toast(msg, type) {
 const fadeSt = document.createElement('style');
 fadeSt.textContent = '@keyframes fadeOut{to{opacity:0;transform:translateX(20px)}}';
 document.head.appendChild(fadeSt);
+
+// =======================================================================
+// ERROR HANDLER — restores hand if server rejects a play
+// =======================================================================
+function onServerError(d) {
+  toast(d.message || 'Error', 'error');
+  if (pendingPlay) {
+    // Server rejected our play — put the domino back and restore turn
+    myHand.push(pendingPlay);
+    pendingPlay = null;
+    myTurn = true;
+    renderHand(true);
+    setStatus('⭐ Your turn! Play a domino.');
+  }
+}
+
+// =======================================================================
+// GAME ABANDONED (player disconnected mid-game)
+// =======================================================================
+function onGameAbandoned(d) {
+  toast(`⚠️ ${d.name} disconnected`, 'error');
+  setStatus(d.message || 'A player disconnected. Start a new hand when ready.');
+  if (d.state) { gameState = d.state; updateHeader(d.state); }
+}
+
+// =======================================================================
+// BIDDING COUNTDOWN
+// =======================================================================
+function startBiddingCountdown(seconds, cb) {
+  const overlay = document.getElementById('bid-countdown');
+  const numEl   = document.getElementById('cd-num');
+  let n = seconds;
+  numEl.textContent = n;
+  overlay.classList.remove('hidden');
+  clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    n--;
+    numEl.textContent = n;
+    if (n <= 0) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+      overlay.classList.add('hidden');
+      if (cb) cb();
+    }
+  }, 1000);
+}
+
+// =======================================================================
+// LIVE CLOCK
+// =======================================================================
+// Keep --hand-h CSS var in sync so chat button floats above hand area
+function updateHandHeight() {
+  const h = document.getElementById('hand-area');
+  if (h) document.documentElement.style.setProperty('--hand-h', h.offsetHeight + 'px');
+}
+new ResizeObserver(updateHandHeight).observe(document.getElementById('hand-area') || document.body);
+updateHandHeight();
+
+function startClock() {
+  function tick() {
+    const el = document.getElementById('hdr-clock');
+    if (!el) return;
+    const now = new Date();
+    let h = now.getHours(), m = now.getMinutes();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    el.textContent = `${h}:${String(m).padStart(2,'0')} ${ampm}`;
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+startClock();
+
+// =======================================================================
+// HAND PEEK (small non-playable hand view inside modals)
+// =======================================================================
+function renderHandPeek(containerId) {
+  const row = document.getElementById(containerId);
+  if (!row) return;
+  row.innerHTML = '';
+  myHand.forEach(([a,b]) => {
+    row.appendChild(makeDomino(a, b, 'sm', null));
+  });
+}
+
+// =======================================================================
+// CHAT QUICK REACTIONS
+// =======================================================================
+function sendQuick(msg) {
+  if (!socket || !myRoom) return;
+  socket.emit('send_chat', { room_id: myRoom, message: msg });
+}
+
+function sendChat() {
+  const inp = document.getElementById('chat-input');
+  const msg = inp.value.trim();
+  if (!msg) return;
+  socket.emit('send_chat', { room_id: myRoom, message: msg });
+  inp.value = '';
+}
 
 // =======================================================================
 // COPY HELPERS

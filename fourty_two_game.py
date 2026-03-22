@@ -198,12 +198,12 @@ class FourtyTwo:
         for index, domino in enumerate(self._trick[1:], start=1):
             #domino contains trump
             if domino.contains(self._trump):
-                #domino contains trump and high side is trump
-                if winning_domino.high_side() == self._trump:
+                #current winner is also trump — compare within trump suit
+                if winning_domino.contains(self._trump):
                     if domino.low_side(self._trump) > winning_domino.low_side(self._trump):
                         winning_domino = domino
                         winner = index
-                #domino contains trump and high side is not trump
+                #current winner is not trump — new trump domino beats it
                 else:
                     winning_domino = domino
                     winner = index

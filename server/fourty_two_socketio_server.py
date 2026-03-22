@@ -35,26 +35,73 @@ POINTS_TO_WIN = 250
 MARKS_TO_WIN  = 7
 MAX_CHAT      = 60
 
+# Short game phrases allowed in chat alongside emoji
+CHAT_PHRASES = {
+    "Nice Play!", "Good Bid!", "Oops!", "Let's Go!", "Lucky!", "GG!",
+    "Well Done!", "So Close!", "Got'em!", "Wow!", "No way!", "Let's go!",
+}
+
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 def _is_emoji_only(text: str) -> bool:
-    """Return True if text contains only emoji/unicode symbols (no ASCII letters/digits/punctuation)."""
+    """Return True if text contains only emoji characters (no letters, digits, or punctuation)."""
     text = text.strip()
     if not text:
         return False
+    # Unicode ranges that are emoji or emoji-support characters
+    _EMOJI_RANGES = [
+        (0x00A9, 0x00A9),   # ©
+        (0x00AE, 0x00AE),   # ®
+        (0x203C, 0x2049),   # ‼ to ⁉
+        (0x2122, 0x2122),   # ™
+        (0x2139, 0x2139),   # ℹ
+        (0x2194, 0x21AA),   # Arrows
+        (0x231A, 0x231B),   # Watch/hourglass
+        (0x2328, 0x2328),   # Keyboard
+        (0x23CF, 0x23CF),
+        (0x23E9, 0x23F3),
+        (0x23F8, 0x23FA),
+        (0x24C2, 0x24C2),
+        (0x25AA, 0x25AB),
+        (0x25B6, 0x25B6),
+        (0x25C0, 0x25C0),
+        (0x25FB, 0x25FE),
+        (0x2600, 0x27BF),   # Misc symbols + dingbats
+        (0x2934, 0x2935),
+        (0x2B05, 0x2B07),
+        (0x2B1B, 0x2B1C),
+        (0x2B50, 0x2B55),
+        (0x3030, 0x3030),
+        (0x303D, 0x303D),
+        (0x3297, 0x3297),
+        (0x3299, 0x3299),
+        (0x1F004, 0x1F004),
+        (0x1F0CF, 0x1F0CF),
+        (0x1F170, 0x1F171),
+        (0x1F17E, 0x1F17F),
+        (0x1F18E, 0x1F18E),
+        (0x1F191, 0x1F19A),
+        (0x1F1E0, 0x1F1FF),  # Regional indicators (flags)
+        (0x1F201, 0x1F202),
+        (0x1F21A, 0x1F21A),
+        (0x1F22F, 0x1F22F),
+        (0x1F232, 0x1F23A),
+        (0x1F250, 0x1F251),
+        (0x1F300, 0x1F9FF),  # Main emoji block
+        (0x1FA00, 0x1FA6F),
+        (0x1FA70, 0x1FAFF),
+        (0xFE00, 0xFE0F),    # Variation selectors
+        (0x200D, 0x200D),    # Zero-width joiner
+        (0x20E3, 0x20E3),    # Combining enclosing keycap
+    ]
     for ch in text:
-        cp = ord(ch)
-        # Allow spaces
         if ch == ' ':
             continue
-        # Reject non-space printable ASCII (letters, digits, punctuation) – cp 0x21..0x7E
-        if 0x21 <= cp <= 0x7E:
-            return False
-        # Reject ASCII control characters (below 0x20) and DEL (0x7F)
-        if cp < 0x20 or cp == 0x7F:
+        cp = ord(ch)
+        if not any(lo <= cp <= hi for lo, hi in _EMOJI_RANGES):
             return False
     return True
 
@@ -113,7 +160,8 @@ class GameRoom:
     def add_player(self, sid: str, name: str):
         if len(self.players) >= 4:
             return None, "Room is full"
-        player_num = len(self.players) + 1
+        used = {info["num"] for info in self.players.values()}
+        player_num = next(n for n in range(1, 5) if n not in used)
         self.players[sid] = {"num": player_num, "name": name}
         self.sid_by_num[player_num] = sid
         self.names[player_num] = name
@@ -388,6 +436,15 @@ def create_app(test_config=None):
                 sio.emit("player_left", {
                     "player_num": pnum, "name": name, "state": room.get_state()
                 }, room=room_id)
+                # If a player leaves during an active game, unfreeze remaining players
+                if room.phase in ("bidding", "trump_selection", "playing"):
+                    room.phase = "hand_complete"
+                    sio.emit("game_abandoned", {
+                        "player_num": pnum,
+                        "name": name,
+                        "message": f"{name} disconnected. Start a new hand when ready.",
+                        "state": room.get_state(),
+                    }, room=room_id)
                 if not room.players and not room.spectators:
                     del _rooms[room_id]
                 break
@@ -581,13 +638,25 @@ def create_app(test_config=None):
         # ---- Suit-following validation ----
         trick_objs = room.game.get_trick()
         if trick_objs:
-            lead    = trick_objs[0]
-            trump   = room.game._trump
-            lead_suit = trump if (trump is not None and lead.contains(trump)) else lead.high_side()
-            hand    = room.game.get_hand(pnum)
-            has_suit = any(d.contains(lead_suit) for d in hand)
-            if has_suit and not domino.contains(lead_suit):
-                emit("error", {"message": f"You must follow suit ({lead_suit}s)"}); return
+            lead      = trick_objs[0]
+            trump     = room.game._trump
+            lead_suit = trump if (trump is not None and lead.contains(trump)) else lead.high_side(trump=trump)
+            hand      = room.game.get_hand(pnum)
+
+            if lead_suit == trump:
+                # Trump was led — must follow with any trump domino
+                has_suit = any(d.contains(trump) for d in hand)
+                if has_suit and not domino.contains(trump):
+                    emit("error", {"message": f"You must follow suit (trump: {lead_suit}s)"}); return
+            else:
+                # Non-trump led — only non-trump dominoes of the lead suit count
+                has_suit = any(
+                    d.contains(lead_suit) and (trump is None or not d.contains(trump))
+                    for d in hand
+                )
+                played_follows = domino.contains(lead_suit) and (trump is None or not domino.contains(trump))
+                if has_suit and not played_follows:
+                    emit("error", {"message": f"You must follow suit ({lead_suit}s)"}); return
 
         success = room.game.play(pnum, domino)
         if not success:
@@ -653,8 +722,8 @@ def create_app(test_config=None):
             return  # not in room
 
         msg = (data.get("message") or "").strip()
-        if not _is_emoji_only(msg):
-            emit("error", {"message": "Chat supports emoji only 😊"}); return
+        if msg not in CHAT_PHRASES and not _is_emoji_only(msg):
+            emit("error", {"message": "Chat supports emoji or quick phrases only 😊"}); return
 
         if pnum:
             sender = room.names.get(pnum, f"P{pnum}")
@@ -686,7 +755,9 @@ def create_app(test_config=None):
         if room_id not in _rooms:
             emit("error", {"message": "Room not found"}); return
         room = _rooms[room_id]
-        if room.phase not in ("hand_complete", "game_complete"):
+        if room.get_player_num(request.sid) is None:
+            emit("error", {"message": "Only players can start a new hand"}); return
+        if room.phase != "hand_complete":
             emit("error", {"message": "Hand is not yet complete"}); return
 
         room.hand_num += 1
@@ -726,4 +797,5 @@ def create_app(test_config=None):
 
 if __name__ == "__main__":
     app, sio = create_app()
-    sio.run(app, host="0.0.0.0", port=5000, debug=True, allow_unsafe_werkzeug=True)
+    port = int(os.environ.get("PORT", 5000))
+    sio.run(app, host="0.0.0.0", port=port, debug=False, allow_unsafe_werkzeug=True)

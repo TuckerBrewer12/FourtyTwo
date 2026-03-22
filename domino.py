@@ -56,14 +56,14 @@ class Domino:
         return self._domino[0]
     
     def __eq__(self, other):
-        """Compare domino equality"""
+        """Compare domino equality — [a,b] and [b,a] are the same domino."""
         if isinstance(other, Domino):
-            return self._domino == other._domino
+            return frozenset(self._domino) == frozenset(other._domino)
         return False
 
     def __hash__(self):
-        """Make Domino hashable so it can be used in sets and as dict keys"""
-        return hash(self._domino)
+        """Make Domino hashable so it can be used in sets and as dict keys."""
+        return hash(frozenset(self._domino))
     
     def __gt__(self, other):
         """Compare domino greater than"""
