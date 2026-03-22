@@ -1,0 +1,99 @@
+.domino {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  border: 1.5px solid rgba(0,0,0,.15);
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+  transition: transform var(--trans), box-shadow var(--trans), opacity var(--trans), filter var(--trans);
+  box-shadow: 0 1px 4px rgba(0,0,0,.12);
+}
+
+.half {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+}
+
+.divider {
+  width: 2px;
+  background: rgba(255,255,255,.6);
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+.pipGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+  gap: 1px;
+  width: 100%;
+  height: 100%;
+}
+
+.pipCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pip {
+  border-radius: 50%;
+  background: rgba(255,255,255,.88);
+}
+
+/* ---- Sizes ---- */
+.xs .half     { width: 18px; height: 18px; padding: 2px; }
+.xs .pip      { width: 4px; height: 4px; }
+.xs           { border-width: 1px; border-radius: 5px; }
+.xs .divider  { width: 1px; }
+
+.sm .half     { width: 24px; height: 24px; padding: 2px; }
+.sm .pip      { width: 5px; height: 5px; }
+.sm           { border-radius: 6px; }
+.sm .divider  { width: 1.5px; }
+
+.md .half     { width: 34px; height: 34px; padding: 3px; }
+.md .pip      { width: 7px; height: 7px; }
+
+.lg .half     { width: 44px; height: 44px; padding: 4px; }
+.lg .pip      { width: 9px; height: 9px; }
+
+.xl .half     { width: 56px; height: 56px; padding: 5px; }
+.xl .pip      { width: 11px; height: 11px; }
+.xl           { border-radius: 12px; }
+
+/* ---- States ---- */
+.count {
+  box-shadow: 0 0 0 2.5px var(--warning), 0 1px 4px rgba(0,0,0,.12);
+}
+
+.playable {
+  cursor: pointer;
+  box-shadow: 0 0 0 2.5px var(--accent), 0 2px 8px rgba(45,158,92,.25);
+}
+.playable:hover {
+  transform: translateY(-8px) scale(1.06);
+  box-shadow: 0 0 0 3px var(--accent), 0 10px 24px rgba(45,158,92,.35);
+  z-index: 5;
+}
+
+.invalid {
+  opacity: .35;
+  filter: grayscale(.5) brightness(.95);
+  cursor: not-allowed;
+}
+
+.inTrick {
+  animation: domDrop .25s ease;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .xl .half   { width: 44px; height: 44px; }
+  .xl .pip    { width: 9px; height: 9px; }
+}

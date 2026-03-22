@@ -21,7 +21,7 @@ import sys, os, uuid, logging
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, send_from_directory, request, redirect, url_for
 from flask_socketio import SocketIO, join_room as sio_join_room, leave_room as sio_leave_room, emit
 from fourty_two_game import FourtyTwo, InvalidBidError
 from domino import Domino
@@ -380,7 +380,14 @@ class GameRoom:
 # ---------------------------------------------------------------------------
 
 def create_app(test_config=None):
-    app = Flask(__name__, template_folder="templates")
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    use_react = os.path.isfile(os.path.join(static_dir, "index.html"))
+    app = Flask(
+        __name__,
+        static_folder="static" if use_react else None,
+        static_url_path="" if use_react else None,
+        template_folder="templates",
+    )
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "fortytwo-secret-2025")
     if test_config:
         app.config.update(test_config)
@@ -391,13 +398,13 @@ def create_app(test_config=None):
     # ------------------------------------------------------------------ HTTP
 
     @app.route("/")
-    def index():
-        return render_template("index.html")
-
     @app.route("/join/<room_id>")
-    def invite_join(room_id):
-        """One-click invite URL – redirects to lobby with room pre-filled."""
-        return redirect(f"/?room={room_id.upper()}")
+    def index(**_):
+        if use_react:
+            return send_from_directory(app.static_folder, "index.html")
+        return send_from_directory(
+            os.path.join(os.path.dirname(__file__), "templates"), "index.html"
+        )
 
     @app.route("/health")
     def health():

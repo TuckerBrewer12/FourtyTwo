@@ -1,0 +1,46 @@
+:root {
+  --bg:            #eef6ee;
+  --surface:       #ffffff;
+  --border:        rgba(0,0,0,.08);
+  --border-solid:  #e2ebe2;
+  --shadow:        0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
+  --shadow-sm:     0 1px 3px rgba(0,0,0,.08);
+  --shadow-lg:     0 8px 32px rgba(0,0,0,.12);
+
+  --table-felt:    #c8e8c8;
+  --table-border:  #8cc8a0;
+
+  --accent:        #2d9e5c;
+  --accent-hover:  #237a48;
+  --accent-light:  rgba(45,158,92,.1);
+
+  --text:          #111827;
+  --text-muted:    #6b7280;
+  --text-faint:    #9ca3af;
+
+  --t1:            #3b82f6;
+  --t1-bg:         rgba(59,130,246,.08);
+  --t1-border:     rgba(59,130,246,.25);
+  --t2:            #ef4444;
+  --t2-bg:         rgba(239,68,68,.08);
+  --t2-border:     rgba(239,68,68,.25);
+
+  --danger:        #ef4444;
+  --success:       #22c55e;
+  --warning:       #f59e0b;
+
+  /* Domino suit colors — colored halves, white pips */
+  --suit-0:        #94a3b8;  /* Blanks  — slate  */
+  --suit-1:        #f87171;  /* Aces    — coral  */
+  --suit-2:        #fb923c;  /* Deuces  — orange */
+  --suit-3:        #fbbf24;  /* Treys   — amber  */
+  --suit-4:        #34d399;  /* Fours   — emerald*/
+  --suit-5:        #60a5fa;  /* Fives   — sky    */
+  --suit-6:        #a78bfa;  /* Sixes   — violet */
+
+  --radius-sm:     6px;
+  --radius:        10px;
+  --radius-lg:     16px;
+  --radius-xl:     24px;
+  --trans:         .15s ease;
+}
