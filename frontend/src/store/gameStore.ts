@@ -1,12 +1,12 @@
 import { create } from 'zustand'
 import { io, Socket } from 'socket.io-client'
 import type {
-  Screen, GameState, GameMode, Domino,
+  Screen, GameState, GameMode, Domino, SeatMap,
   RoomJoinedPayload, PlayerJoinedPayload, RoomFullPayload,
   SpectatorConfirmedPayload, GameStartedPayload,
   BidPlacedPayload, BiddingCompletePayload, TrumpSetPayload,
   YourTurnPayload, WaitingPayload, DominoPlayedPayload,
-  TrickCompletePayload, HandCompletePayload,
+  TrickCompletePayload, HandCompletePayload, GameAbandonedPayload,
 } from '../types/game'
 
 export interface Toast {
@@ -33,6 +33,10 @@ interface GameStore {
   gameState: GameState | null;
   myHand: Domino[];
   myTurn: boolean;
+  pendingPlay: Domino | null;
+  biddingCountdown: number | null;
+  validPlays: Domino[];
+  seatMap: SeatMap | null;
 
   // Modal visibility
   bidModalOpen: boolean;
@@ -85,6 +89,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   gameState: null,
   myHand: [],
   myTurn: false,
+  pendingPlay: null,
+  biddingCountdown: null,
+  validPlays: [],
+  seatMap: null,
   bidModalOpen: false,
   trumpModalOpen: false,
   handResultData: null,
@@ -118,7 +126,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isSpectator: false, currentScreen: 'lobby',
       bidModalOpen: false, trumpModalOpen: false,
       handResultData: null, gameOverData: null, chatOpen: false,
-      unreadChat: 0, statusMsg: 'Waiting…',
+      unreadChat: 0, statusMsg: 'Waiting…', pendingPlay: null, biddingCountdown: null,
+      validPlays: [], seatMap: null,
     });
     window.history.replaceState({}, '', '/');
   },
@@ -171,15 +180,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
     socket.on('game_started', (d: GameStartedPayload) => {
       const { myPNum, isSpectator } = get();
       const hand = d.state.hand ?? [];
+      const shouldBid = !isSpectator && d.state.phase === 'bidding' && d.state.bid_turn === myPNum;
       set({
         gameState: d.state,
         myHand: hand,
         currentScreen: 'game',
-        statusMsg: `Hand ${d.state.hand_num} — Bidding starts with P${d.state.bid_turn}`,
+        biddingCountdown: 10,
+        seatMap: d.seat_map ?? null,
+        validPlays: [],
+        statusMsg: `Hand ${d.state.hand_num} — Look at your hand — bidding starts in 10s`,
       });
-      if (!isSpectator && d.state.phase === 'bidding' && d.state.bid_turn === myPNum) {
-        set({ bidModalOpen: true });
-      }
+      let n = 10;
+      const timer = setInterval(() => {
+        n--;
+        if (n <= 0) {
+          clearInterval(timer);
+          set({
+            biddingCountdown: null,
+            statusMsg: `Hand ${d.state.hand_num} — Bidding starts with P${d.state.bid_turn}`,
+          });
+          if (shouldBid) set({ bidModalOpen: true });
+        } else {
+          set({ biddingCountdown: n });
+        }
+      }, 1000);
     });
 
     socket.on('bid_placed', (d: BidPlacedPayload) => {
@@ -195,6 +219,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           high_bid: d.high_bid,
           high_bidder: d.high_bidder,
           high_marks: d.high_marks,
+          available_bids: d.available_bids ?? s.gameState.available_bids,
         } : s.gameState,
       }));
       const { myPNum, isSpectator } = get();
@@ -228,6 +253,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         myHand: d.hand ?? get().myHand,
         myTurn: true,
+        validPlays: d.valid_plays ?? [],
+        seatMap: d.seat_map ?? get().seatMap,
         statusMsg: '⭐ Your turn! Play a domino.',
       });
     });
@@ -238,12 +265,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         myHand: d.hand ?? get().myHand,
         myTurn: false,
+        validPlays: [],
+        seatMap: d.seat_map ?? get().seatMap,
         statusMsg: `Waiting for ${nm} (P${d.play_turn}) to play…`,
       });
     });
 
     socket.on('domino_played', (d: DominoPlayedPayload) => {
       set(s => ({
+        pendingPlay: null,
         gameState: s.gameState ? { ...s.gameState, trick: d.trick } : s.gameState,
       }));
     });
@@ -303,8 +333,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }));
     });
 
-    socket.on('error', (d: { message: string }) =>
-      get().addToast(d.message ?? 'Error', 'error'));
+    socket.on('error', (d: { message: string }) => {
+      get().addToast(d.message ?? 'Error', 'error');
+      // If the server rejected a play, put the domino back
+      const pp = get().pendingPlay;
+      if (pp) {
+        set(s => ({ myHand: [...s.myHand, pp], pendingPlay: null, myTurn: true }));
+      }
+    });
+
+    socket.on('game_abandoned', (d: GameAbandonedPayload) => {
+      get().addToast(`⚠️ ${d.name} disconnected`, 'error');
+      set(s => ({
+        statusMsg: d.message || 'A player disconnected. Start a new hand when ready.',
+        gameState: d.state ?? s.gameState,
+      }));
+    });
   },
 
   emitCreateRoom: (name, mode) => {
@@ -339,6 +383,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     get().socket?.emit('play', { room_id: get().myRoom, domino });
     set(s => ({
       myTurn: false,
+      pendingPlay: domino,
+      validPlays: [],
       myHand: s.myHand.filter(([a, b]) => !(a === domino[0] && b === domino[1])),
       statusMsg: 'Domino played — waiting for others…',
     }));

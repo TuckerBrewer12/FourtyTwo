@@ -1,12 +1,13 @@
 import { useGameStore } from '../../store/gameStore'
+import { useShallow } from 'zustand/react/shallow'
 
 export default function GameOverScreen() {
-  const { gameOverData, gameState, goLobby, emitNewHand } = useGameStore(s => ({
+  const { gameOverData, gameState, goLobby, emitNewHand } = useGameStore(useShallow(s => ({
     gameOverData: s.gameOverData,
     gameState:    s.gameState,
     goLobby:      s.goLobby,
     emitNewHand:  s.emitNewHand,
-  }))
+  })))
 
   if (!gameOverData) return null;
   const d  = gameOverData

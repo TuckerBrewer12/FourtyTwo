@@ -1,16 +1,19 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/gameStore'
+import { useShallow } from 'zustand/react/shallow'
 import Modal from '../shared/Modal'
+import Domino from '../domino/Domino'
 
 const SUIT_NAMES = ['Blanks','Aces','Deuces','Treys','Fours','Fives','Sixes']
 
 export default function TrumpModal() {
-  const { trumpModalOpen, gameState, emitSetTrump, addToast } = useGameStore(s => ({
+  const { trumpModalOpen, gameState, myHand, emitSetTrump, addToast } = useGameStore(useShallow(s => ({
     trumpModalOpen: s.trumpModalOpen,
     gameState:      s.gameState,
+    myHand:         s.myHand,
     emitSetTrump:   s.emitSetTrump,
     addToast:       s.addToast,
-  }))
+  })))
 
   const [selTrump, setSelTrump] = useState<number | null>(null)
 
@@ -67,6 +70,18 @@ export default function TrumpModal() {
       }}>
         Set Trump
       </button>
+
+      {/* Hand peek */}
+      {myHand.length > 0 && (
+        <div style={{ marginTop: '.75rem', paddingTop: '.6rem', borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.4rem' }}>
+            Your Hand
+          </div>
+          <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+            {myHand.map(([a, b], i) => <Domino key={i} a={a} b={b} size="sm" />)}
+          </div>
+        </div>
+      )}
     </Modal>
   )
 }

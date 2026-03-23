@@ -17,6 +17,9 @@ Scoring modes
 "marks_7"     – variation: each hand awards 1 mark; first to 7 marks wins.
 """
 
+import eventlet
+eventlet.monkey_patch()
+
 import sys, os, uuid, logging
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -111,6 +114,66 @@ def _unique_room_id() -> str:
         rid = str(uuid.uuid4())[:6].upper()
         if rid not in _rooms:
             return rid
+
+
+def _compute_valid_plays(room, pnum: int) -> list[list[int]]:
+    """Returns list of [a,b] dominos the player may legally play."""
+    try:
+        hand = room.game.get_hand(pnum)
+    except Exception:
+        return []
+    trick_objs = room.game.get_trick()
+    trump = room.game._trump
+
+    if not trick_objs:  # leading the trick — all valid
+        return [[d.a, d.b] for d in hand]
+
+    lead = trick_objs[0]
+    if trump is not None and lead.contains(trump):
+        lead_suit = trump
+    else:
+        lead_suit = lead.high_side(trump=trump)
+
+    if lead_suit == trump:
+        has_suit = any(d.contains(trump) for d in hand)
+        if has_suit:
+            return [[d.a, d.b] for d in hand if d.contains(trump)]
+    else:
+        has_suit = any(
+            d.contains(lead_suit) and (trump is None or not d.contains(trump))
+            for d in hand
+        )
+        if has_suit:
+            return [[d.a, d.b] for d in hand
+                    if d.contains(lead_suit) and (trump is None or not d.contains(trump))]
+
+    return [[d.a, d.b] for d in hand]
+
+
+def _compute_seat_map(my_pnum: int) -> dict[int, str]:
+    """Returns {player_num: seat} with my_pnum always sitting South."""
+    seats = ['south', 'west', 'north', 'east']
+    return {((my_pnum - 1 + offset) % 4) + 1: seats[offset] for offset in range(4)}
+
+
+# Spectators view the table from a fixed angle: P1=North, P2=East, P3=South, P4=West
+_SPECTATOR_SEAT_MAP = {1: 'north', 2: 'east', 3: 'south', 4: 'west'}
+
+
+def _safe_hand_len(game, pnum: int) -> int:
+    try:
+        return len(game.get_hand(pnum))
+    except Exception:
+        return 7
+
+
+def _compute_available_bids(room) -> list[int]:
+    """Returns the list of legally biddable values for the current bidder."""
+    if not room.game or room.phase != "bidding":
+        return []
+    hb = room.game._high_bid
+    base = hb if (hb is not None and hb > 0) else 29
+    return list(range(max(30, base + 1), 43))
 
 
 # ---------------------------------------------------------------------------
@@ -250,6 +313,15 @@ class GameRoom:
             "last_trick_winner": self.last_trick_winner,
             "chat_history":   self.chat_history[-25:],
             "hand_history":   self.hand_history[-5:],
+            # Server-computed config / derived state (never recomputed on client)
+            "team_map":       {1: 1, 2: 2, 3: 1, 4: 2},
+            "tile_counts":    {
+                p: _safe_hand_len(self.game, p) for p in range(1, 5)
+            },
+            "available_bids": _compute_available_bids(self),
+            "total_tricks":   7,
+            "win_target":     250 if self.game_mode == "points_250" else 7,
+            "max_bid":        42,
         }
 
         if for_player is not None:
@@ -344,16 +416,8 @@ class GameRoom:
 
         self.phase = "game_complete" if game_over else "hand_complete"
 
-        winner_team = None
-        if game_over:
-            if self.game_mode == "marks_7":
-                winner_team = 1 if self.team1_marks >= MARKS_TO_WIN else 2
-            else:
-                # If both crossed 250 on the same hand → bidding team wins
-                if self.team1_total >= POINTS_TO_WIN and self.team2_total >= POINTS_TO_WIN:
-                    winner_team = bid_team if made else opp_team
-                else:
-                    winner_team = 1 if self.team1_total >= POINTS_TO_WIN else 2
+        # Hand winner (also the game winner when game_over is True)
+        winner_team = bid_team if made else opp_team
 
         sio.emit("hand_complete", {
             "bid_team":     bid_team,
@@ -523,10 +587,15 @@ def create_app(test_config=None):
         if room.all_players_present():
             room.start_hand()
             for p, s in room.sid_by_num.items():
-                sio.emit("game_started", {"state": room.get_state(p)}, room=s)
-            # notify spectators too
+                sio.emit("game_started", {
+                    "state": room.get_state(p),
+                    "seat_map": _compute_seat_map(p),
+                }, room=s)
             for s in room.spectators:
-                sio.emit("game_started", {"state": room.get_state()}, room=s)
+                sio.emit("game_started", {
+                    "state": room.get_state(),
+                    "seat_map": _SPECTATOR_SEAT_MAP,
+                }, room=s)
 
     @sio.on("join_spectator")
     def on_join_spectator(data):
@@ -571,14 +640,15 @@ def create_app(test_config=None):
         bids_placed   = len(room.game._bids)
 
         sio.emit("bid_placed", {
-            "player_num":  pnum,
-            "bid":         bid_val,
-            "marks":       marks,
-            "bid_turn":    room.bid_turn,
-            "bids_placed": bids_placed,
-            "high_bid":    room.game._high_bid,
-            "high_bidder": room.game._high_bidder,
-            "high_marks":  room.game._high_marks,
+            "player_num":     pnum,
+            "bid":            bid_val,
+            "marks":          marks,
+            "bid_turn":       room.bid_turn,
+            "bids_placed":    bids_placed,
+            "high_bid":       room.game._high_bid,
+            "high_bidder":    room.game._high_bidder,
+            "high_marks":     room.game._high_marks,
+            "available_bids": _compute_available_bids(room),
         }, room=room.room_id)
 
         if bids_placed == 4:
@@ -771,9 +841,15 @@ def create_app(test_config=None):
         room.start_hand()
 
         for p, s in room.sid_by_num.items():
-            sio.emit("game_started", {"state": room.get_state(p)}, room=s)
+            sio.emit("game_started", {
+                "state": room.get_state(p),
+                "seat_map": _compute_seat_map(p),
+            }, room=s)
         for s in room.spectators:
-            sio.emit("game_started", {"state": room.get_state()}, room=s)
+            sio.emit("game_started", {
+                "state": room.get_state(),
+                "seat_map": _SPECTATOR_SEAT_MAP,
+            }, room=s)
 
     # ------------------------------------------------------------------ helpers
 
@@ -794,10 +870,14 @@ def create_app(test_config=None):
                 hand = [d.to_list() for d in room.game.get_hand(pnum)]
             except Exception:
                 hand = []
-            sio.emit("your_turn" if is_turn else "waiting", {
-                "hand": hand, "play_turn": room.play_turn,
-                "action": "play" if is_turn else "wait",
-            }, room=psid)
+            payload = {
+                "hand":       hand,
+                "play_turn":  room.play_turn,
+                "action":     "play" if is_turn else "wait",
+                "seat_map":   _compute_seat_map(pnum),
+                "valid_plays": _compute_valid_plays(room, pnum) if is_turn else [],
+            }
+            sio.emit("your_turn" if is_turn else "waiting", payload, room=psid)
 
     return app, sio
 

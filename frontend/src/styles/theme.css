@@ -29,14 +29,15 @@
   --success:       #22c55e;
   --warning:       #f59e0b;
 
-  /* Domino suit colors — colored halves, white pips */
-  --suit-0:        #94a3b8;  /* Blanks  — slate  */
-  --suit-1:        #f87171;  /* Aces    — coral  */
-  --suit-2:        #fb923c;  /* Deuces  — orange */
-  --suit-3:        #fbbf24;  /* Treys   — amber  */
-  --suit-4:        #34d399;  /* Fours   — emerald*/
-  --suit-5:        #60a5fa;  /* Fives   — sky    */
-  --suit-6:        #a78bfa;  /* Sixes   — violet */
+  /* Domino pip colors — colored dots on neutral half background */
+  --suit-0:        transparent; /* Blanks  — no pips    */
+  --suit-1:        #93c5fd;     /* Aces    — light blue */
+  --suit-2:        #15803d;     /* Deuces  — dark green */
+  --suit-3:        #dc2626;     /* Treys   — red        */
+  --suit-4:        #9ca3af;     /* Fours   — grey       */
+  --suit-5:        #1e40af;     /* Fives   — dark blue  */
+  --suit-6:        #ca8a04;     /* Sixes   — dark yellow*/
+  --domino-half:   #f1f5f9;     /* half background — light neutral */
 
   --radius-sm:     6px;
   --radius:        10px;

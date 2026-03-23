@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/gameStore'
+import { useShallow } from 'zustand/react/shallow'
 import type { GameMode } from '../../types/game'
 
 const MODE_INFO: Record<GameMode, string> = {
@@ -14,11 +15,11 @@ export default function LobbyScreen() {
   const [roomCode, setRoom] = useState('')
   const [mode, setMode]     = useState<GameMode>('points_250')
 
-  const { emitCreateRoom, emitJoinGame, addToast } = useGameStore(s => ({
+  const { emitCreateRoom, emitJoinGame, addToast } = useGameStore(useShallow(s => ({
     emitCreateRoom: s.emitCreateRoom,
     emitJoinGame:   s.emitJoinGame,
     addToast:       s.addToast,
-  }))
+  })))
   const openRules = () => useGameStore.setState({ rulesModalOpen: true })
 
   function create() {

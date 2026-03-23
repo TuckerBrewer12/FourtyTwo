@@ -1,13 +1,17 @@
 import { useRef, useEffect, useState } from 'react'
 import { useGameStore } from '../../store/gameStore'
+import { useShallow } from 'zustand/react/shallow'
+
+const QUICK_EMOJI = ['👍','👏','🎉','🔥','😂','😬','🤯','💀']
+const QUICK_PHRASES = ['Nice Play!','Good Bid!','Oops!',"Let's Go!",'Lucky!','GG!']
 
 export default function ChatPanel() {
-  const { chatOpen, gameState, emitChat, setChatOpen } = useGameStore(s => ({
+  const { chatOpen, gameState, emitChat, setChatOpen } = useGameStore(useShallow(s => ({
     chatOpen:  s.chatOpen,
     gameState: s.gameState,
     emitChat:  s.emitChat,
     setChatOpen: s.setChatOpen,
-  }))
+  })))
 
   const [msg, setMsg] = useState('')
   const msgsRef = useRef<HTMLDivElement>(null)
@@ -22,6 +26,10 @@ export default function ChatPanel() {
     if (!msg.trim()) return
     emitChat(msg.trim())
     setMsg('')
+  }
+
+  function sendQuick(text: string) {
+    emitChat(text)
   }
 
   const history = gameState?.chat_history ?? []
@@ -66,6 +74,32 @@ export default function ChatPanel() {
         ))}
       </div>
 
+      {/* Quick reactions */}
+      <div style={{ padding: '.5rem .75rem', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+        <div style={{ fontSize: '.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.3rem' }}>
+          Quick Reactions
+        </div>
+        <div style={{ display: 'flex', gap: '.25rem', flexWrap: 'wrap', marginBottom: '.25rem' }}>
+          {QUICK_EMOJI.map(e => (
+            <button key={e} onClick={() => sendQuick(e)} style={{
+              fontSize: '1.2rem', lineHeight: 1, padding: '.2rem .3rem',
+              background: 'var(--bg)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+            }}>{e}</button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: '.25rem', flexWrap: 'wrap' }}>
+          {QUICK_PHRASES.map(p => (
+            <button key={p} onClick={() => sendQuick(p)} style={{
+              fontSize: '.7rem', fontWeight: 600, padding: '.2rem .5rem',
+              background: 'var(--bg)', border: '1px solid var(--border)',
+              borderRadius: '20px', cursor: 'pointer', color: 'var(--text-muted)',
+              whiteSpace: 'nowrap',
+            }}>{p}</button>
+          ))}
+        </div>
+      </div>
+
       {/* Input */}
       <div style={{ padding: '.6rem .75rem', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{ display: 'flex', gap: '.4rem' }}>
@@ -73,7 +107,7 @@ export default function ChatPanel() {
             value={msg}
             onChange={e => setMsg(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && send()}
-            placeholder="Emoji only… 😊"
+            placeholder="Emoji or type above 😊"
             maxLength={40}
             style={{
               flex: 1, background: 'var(--bg)', border: '1px solid var(--border)',
@@ -87,7 +121,6 @@ export default function ChatPanel() {
             border: 'none', cursor: 'pointer',
           }}>Send</button>
         </div>
-        <p style={{ fontSize: '.68rem', color: 'var(--text-faint)', marginTop: '.2rem' }}>Only emoji are allowed</p>
       </div>
     </div>
   )

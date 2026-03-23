@@ -1,18 +1,24 @@
 import { useGameStore } from '../../store/gameStore'
+import { useShallow } from 'zustand/react/shallow'
 import Modal from '../shared/Modal'
 
 export default function HandResultModal() {
-  const { handResultData, gameState, emitNewHand } = useGameStore(s => ({
+  const { handResultData, gameState, emitNewHand } = useGameStore(useShallow(s => ({
     handResultData: s.handResultData,
     gameState:      s.gameState,
     emitNewHand:    s.emitNewHand,
-  }))
+  })))
 
   if (!handResultData) return null;
   const d = handResultData
 
-  const mode = gameState?.game_mode
-  const bidStr = d.high_bid === 0 ? 'Low' : d.high_bid === 42 ? '42' : `${d.high_bid}`
+  const mode      = gameState?.game_mode
+  const winTarget = gameState?.win_target ?? 250
+  const bidStr    = d.high_bid === 0 ? 'Low' : d.high_bid === 42 ? '42' : `${d.high_bid}`
+  // CSS progress percentages — purely presentational layout math
+  const t1Pts = d.team1_total, t2Pts = d.team2_total
+  const t1BarPct = `${Math.min(100, (t1Pts / winTarget) * 100)}%`
+  const t2BarPct = `${Math.min(100, (t2Pts / winTarget) * 100)}%`
 
   function closeAndNext() {
     useGameStore.setState({ handResultData: null })
@@ -43,7 +49,7 @@ export default function HandResultModal() {
           const gained = team === 1 ? d.t1_gained : d.t2_gained
           const total  = team === 1 ? d.team1_total : d.team2_total
           const marks  = team === 1 ? d.team1_marks : d.team2_marks
-          const winner = d.made ? d.bid_team === team : d.opp_team === team
+          const winner = d.winner_team === team
           const color  = team === 1 ? 'var(--t1)' : 'var(--t2)'
           return (
             <div key={team} style={{
@@ -59,7 +65,7 @@ export default function HandResultModal() {
                 {gained > 0 ? `+${gained} earned` : 'scored 0'}
               </div>
               <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: '.25rem' }}>
-                {mode === 'marks_7' ? `${marks} marks` : `${total} / 250 total`}
+                {mode === 'marks_7' ? `${marks} marks` : `${total} / ${gameState?.win_target ?? 250} total`}
               </div>
             </div>
           )
@@ -70,11 +76,11 @@ export default function HandResultModal() {
       {mode === 'points_250' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '.4rem', marginBottom: '.75rem' }}>
           <div style={{ height: 8, background: 'var(--bg)', borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{ height: '100%', borderRadius: 4, background: 'var(--t1)', width: `${Math.min(100, (d.team1_total / 250) * 100)}%`, transition: 'width .4s ease' }} />
+            <div style={{ height: '100%', borderRadius: 4, background: 'var(--t1)', width: t1BarPct, transition: 'width .4s ease' }} />
           </div>
-          <span style={{ fontSize: '.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>250</span>
+          <span style={{ fontSize: '.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>{winTarget}</span>
           <div style={{ height: 8, background: 'var(--bg)', borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{ height: '100%', borderRadius: 4, background: 'var(--t2)', width: `${Math.min(100, (d.team2_total / 250) * 100)}%`, transition: 'width .4s ease' }} />
+            <div style={{ height: '100%', borderRadius: 4, background: 'var(--t2)', width: t2BarPct, transition: 'width .4s ease' }} />
           </div>
         </div>
       )}

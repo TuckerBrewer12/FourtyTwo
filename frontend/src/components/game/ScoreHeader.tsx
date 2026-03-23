@@ -1,10 +1,29 @@
+import { useState, useEffect } from 'react'
 import { useGameStore } from '../../store/gameStore'
 
 const SUIT_NAMES = ['Blanks','Aces','Deuces','Treys','Fours','Fives','Sixes']
 
+function useClock() {
+  const [time, setTime] = useState(() => {
+    const now = new Date()
+    const h = now.getHours(), m = now.getMinutes()
+    return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+  })
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = new Date()
+      const h = now.getHours(), m = now.getMinutes()
+      setTime(`${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`)
+    }, 10000)
+    return () => clearInterval(id)
+  }, [])
+  return time
+}
+
 export default function ScoreHeader() {
   const gameState = useGameStore(s => s.gameState)
   const gs = gameState
+  const clock = useClock()
 
   return (
     <div style={{
@@ -19,7 +38,7 @@ export default function ScoreHeader() {
       <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
         <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--accent)', letterSpacing: '-.01em' }}>42</span>
         <Chip>{`Hand ${gs?.hand_num ?? 1}`}</Chip>
-        <Chip>{`Trick ${gs?.trick_count ?? 0}/7`}</Chip>
+        <Chip>{`Trick ${gs?.trick_count ?? 0}/${gs?.total_tricks ?? 7}`}</Chip>
         {gs?.trump !== null && gs?.trump !== undefined && (
           <Chip color="var(--accent)" bg="var(--accent-light)" border="rgba(45,158,92,.25)">
             {SUIT_NAMES[gs.trump]}s Trump
@@ -27,7 +46,7 @@ export default function ScoreHeader() {
         )}
       </div>
 
-      {/* Right: scores + rules */}
+      {/* Right: scores + clock + rules */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: '.5rem',
@@ -38,6 +57,10 @@ export default function ScoreHeader() {
           <span style={{ color: 'var(--text-faint)', fontSize: '.75rem' }}>vs</span>
           <TeamScore label="T2" pts={gs?.team2_score ?? 0} total={gs?.team2_total ?? 0} color="var(--t2)" />
         </div>
+        <span style={{
+          fontSize: '.78rem', fontWeight: 600, color: 'var(--text-muted)',
+          fontVariantNumeric: 'tabular-nums', letterSpacing: '.03em', minWidth: 52, textAlign: 'right',
+        }}>{clock}</span>
         <button onClick={() => useGameStore.setState({ rulesModalOpen: true })} style={{
           width: 32, height: 32, borderRadius: '50%', fontSize: '.95rem',
           background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer',

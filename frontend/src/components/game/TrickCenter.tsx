@@ -1,22 +1,17 @@
 import { useGameStore } from '../../store/gameStore'
+import { useShallow } from 'zustand/react/shallow'
 import Domino from '../domino/Domino'
 
-function seatOf(pnum: number, myPNum: number | null): 'south' | 'west' | 'north' | 'east' {
-  if (!myPNum) return 'north' // spectator: view from P1 perspective
-  const diff = ((pnum - myPNum + 4) % 4)
-  return (['south', 'west', 'north', 'east'] as const)[diff]
-}
-
 export default function TrickCenter() {
-  const { gameState, myPNum } = useGameStore(s => ({
+  const { gameState, seatMap } = useGameStore(useShallow(s => ({
     gameState: s.gameState,
-    myPNum:    s.myPNum,
-  }))
+    seatMap:   s.seatMap,
+  })))
 
   const trick = gameState?.trick ?? []
   const slots: Record<string, React.ReactNode> = {}
   trick.forEach(item => {
-    const seat = seatOf(item.player, myPNum)
+    const seat = seatMap?.[item.player] ?? 'north'
     slots[seat] = (
       <Domino
         a={item.domino[0]} b={item.domino[1]}
@@ -26,6 +21,7 @@ export default function TrickCenter() {
   })
 
   const count = trick.length
+  const numPlayers = gameState?.num_players ?? 4
 
   return (
     <div style={{
@@ -58,7 +54,7 @@ export default function TrickCenter() {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: '.72rem', color: 'rgba(0,0,0,.5)', fontWeight: 700,
       }}>
-        {count > 0 ? `${count}/4` : 'trick'}
+        {count > 0 ? `${count}/${numPlayers}` : 'trick'}
       </div>
       <div style={{ gridArea: 'e-slot', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '.35rem' }}>
         {slots.east}

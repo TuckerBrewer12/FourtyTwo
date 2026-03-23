@@ -1,12 +1,13 @@
 import { useGameStore } from '../../store/gameStore'
+import { useShallow } from 'zustand/react/shallow'
 
 export default function WaitingRoom() {
-  const { gameState, myPNum, myRoom, addToast } = useGameStore(s => ({
+  const { gameState, myPNum, myRoom, addToast } = useGameStore(useShallow(s => ({
     gameState: s.gameState,
     myPNum:    s.myPNum,
     myRoom:    s.myRoom,
     addToast:  s.addToast,
-  }))
+  })))
 
   const players = gameState?.players ?? {}
   const filled  = Object.keys(players).length
@@ -72,7 +73,8 @@ export default function WaitingRoom() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.6rem' }}>
             {[1, 2, 3, 4].map(p => {
               const name   = players[p]
-              const team   = p % 2 === 1 ? 1 : 2
+              // team_map from server; static fallback before gameState arrives (P1,P3→T1; P2,P4→T2)
+              const team   = (gameState?.team_map?.[p] ?? ({ 1: 1, 2: 2, 3: 1, 4: 2 } as Record<number, 1|2>)[p]) as 1 | 2
               const isMe   = p === myPNum
               const tColor = team === 1 ? 'var(--t1)' : 'var(--t2)'
               const tBg    = team === 1 ? 'var(--t1-bg)' : 'var(--t2-bg)'

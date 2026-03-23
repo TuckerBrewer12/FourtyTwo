@@ -1,30 +1,31 @@
 import { useGameStore } from '../../store/gameStore'
+import { useShallow } from 'zustand/react/shallow'
 import ScoreHeader from './ScoreHeader'
 import TrickCenter from './TrickCenter'
 import PlayerZone from './PlayerZone'
 import HandArea from './HandArea'
 import StatusBar from './StatusBar'
 
-// Returns the player number sitting at the given seat relative to myPNum
-function pnumAt(seat: 'north' | 'south' | 'east' | 'west', myPNum: number | null): number {
-  if (!myPNum) {
-    // Spectator: P1=north, P2=east, P3=south, P4=west
-    return { north: 1, east: 2, south: 3, west: 4 }[seat]
-  }
-  const offsets = { south: 0, west: 1, north: 2, east: 3 }
-  return ((myPNum - 1 + offsets[seat]) % 4) + 1
+// Invert a seat_map {pnum→seat} to {seat→pnum}
+function invertSeatMap(seatMap: Record<number, string> | null): Record<string, number> {
+  if (!seatMap) return { north: 1, east: 2, south: 3, west: 4 }
+  const inv: Record<string, number> = {}
+  for (const [pnum, seat] of Object.entries(seatMap)) inv[seat] = Number(pnum)
+  return inv
 }
 
 export default function GameBoard() {
-  const { myPNum, isSpectator } = useGameStore(s => ({
-    myPNum:      s.myPNum,
-    isSpectator: s.isSpectator,
-  }))
+  const { isSpectator, biddingCountdown, seatMap } = useGameStore(useShallow(s => ({
+    isSpectator:      s.isSpectator,
+    biddingCountdown: s.biddingCountdown,
+    seatMap:          s.seatMap,
+  })))
 
-  const pNorth = pnumAt('north', myPNum)
-  const pWest  = pnumAt('west',  myPNum)
-  const pEast  = pnumAt('east',  myPNum)
-  const pSouth = pnumAt('south', myPNum)
+  const byName = invertSeatMap(seatMap)
+  const pNorth = byName.north ?? 1
+  const pWest  = byName.west  ?? 4
+  const pEast  = byName.east  ?? 2
+  const pSouth = byName.south ?? 3
 
   return (
     <div style={{
@@ -68,6 +69,31 @@ export default function GameBoard() {
       {/* Status + Hand */}
       <StatusBar />
       <HandArea />
+
+      {/* Bidding countdown overlay */}
+      {biddingCountdown !== null && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 40,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          pointerEvents: 'none',
+        }}>
+          <div style={{
+            background: 'var(--surface)', borderRadius: 'var(--radius-lg)',
+            boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)',
+            padding: '1.5rem 2rem', textAlign: 'center', animation: 'slideUp .2s ease',
+          }}>
+            <div style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginBottom: '.3rem' }}>
+              Look at your hand — bidding starts in
+            </div>
+            <div style={{ fontSize: '3rem', fontWeight: 800, color: 'var(--accent)', lineHeight: 1 }}>
+              {biddingCountdown}
+            </div>
+            <div style={{ fontSize: '.75rem', color: 'var(--text-faint)', marginTop: '.3rem' }}>
+              Check your dominoes below ↓
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

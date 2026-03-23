@@ -1,4 +1,5 @@
 import { useGameStore } from '../../store/gameStore'
+import { useShallow } from 'zustand/react/shallow'
 
 interface PlayerZoneProps {
   seat?: 'north' | 'south' | 'east' | 'west';
@@ -6,33 +7,28 @@ interface PlayerZoneProps {
 }
 
 export default function PlayerZone({ pnum }: PlayerZoneProps) {
-  const { gameState, myPNum, isSpectator, myHand } = useGameStore(s => ({
+  const { gameState, myPNum, isSpectator, myHand } = useGameStore(useShallow(s => ({
     gameState:   s.gameState,
     myPNum:      s.myPNum,
     isSpectator: s.isSpectator,
     myHand:      s.myHand,
-  }))
+  })))
 
   if (!pnum) return null;
 
   const gs      = gameState
   const name    = gs?.players?.[pnum] ?? `P${pnum}`
-  const isMe    = pnum === myPNum && !isSpectator
-  const isPartner = myPNum !== null && pnum % 2 === myPNum % 2 && !isMe
+  const isMe      = pnum === myPNum && !isSpectator
+  const myTeam    = myPNum !== null ? (gs?.team_map?.[myPNum] ?? null) : null
+  const pnumTeam  = gs?.team_map?.[pnum] ?? null
+  const isPartner = myTeam !== null && pnumTeam !== null && myTeam === pnumTeam && !isMe
   const isActive  = gs?.phase === 'playing' && gs.play_turn === pnum
 
   const borderColor = isMe ? 'var(--accent)' : isPartner ? 'var(--t1)' : 'var(--t2)'
   const textColor   = isMe ? 'var(--accent)' : isPartner ? 'var(--t1)' : 'var(--t2)'
 
-  // Tile count
-  let count: number
-  if (isMe) {
-    count = myHand.length
-  } else {
-    const played  = gs?.trick_count ?? 0
-    const inTrick = (gs?.trick ?? []).filter(t => t.player === pnum).length
-    count = Math.max(0, 7 - played - inTrick)
-  }
+  // Tile count: use server-provided tile_counts; fall back to myHand length for self
+  const count = isMe ? myHand.length : (gs?.tile_counts?.[pnum] ?? 0)
 
   return (
     <div style={{

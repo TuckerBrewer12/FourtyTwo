@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/gameStore'
+import { useShallow } from 'zustand/react/shallow'
 
 export default function SpectateOffer() {
   const [name, setName] = useState('')
-  const { pendingRoom, emitJoinSpectator, goLobby } = useGameStore(s => ({
+  const { pendingRoom, emitJoinSpectator, goLobby } = useGameStore(useShallow(s => ({
     pendingRoom:       s.pendingRoom,
     emitJoinSpectator: s.emitJoinSpectator,
     goLobby:           s.goLobby,
-  }))
+  })))
 
   function spectate() {
     emitJoinSpectator(name.trim() || 'Spectator', pendingRoom ?? '')

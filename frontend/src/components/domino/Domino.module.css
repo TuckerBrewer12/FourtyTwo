@@ -21,7 +21,7 @@
 
 .divider {
   width: 2px;
-  background: rgba(255,255,255,.6);
+  background: rgba(0,0,0,.12);
   align-self: stretch;
   flex-shrink: 0;
 }
@@ -43,7 +43,6 @@
 
 .pip {
   border-radius: 50%;
-  background: rgba(255,255,255,.88);
 }
 
 /* ---- Sizes ---- */

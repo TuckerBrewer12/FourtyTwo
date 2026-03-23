@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/gameStore'
+import { useShallow } from 'zustand/react/shallow'
 
 export default function InviteScreen() {
   const [name, setName] = useState('')
-  const { inviteRoomCode, emitJoinGame, addToast, goLobby } = useGameStore(s => ({
+  const { inviteRoomCode, emitJoinGame, addToast, goLobby } = useGameStore(useShallow(s => ({
     inviteRoomCode: s.inviteRoomCode,
     emitJoinGame:   s.emitJoinGame,
     addToast:       s.addToast,
     goLobby:        s.goLobby,
-  }))
+  })))
 
   function join() {
     const n = name.trim()

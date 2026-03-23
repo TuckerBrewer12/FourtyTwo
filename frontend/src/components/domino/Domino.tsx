@@ -17,11 +17,12 @@ function isCount(a: number, b: number) {
 
 function PipGrid({ n }: { n: number }) {
   const pos = PIP_POS[n] ?? [];
+  const color = `var(--suit-${n})`;
   return (
     <div className={styles.pipGrid}>
       {Array.from({ length: 9 }, (_, i) => (
         <div key={i} className={styles.pipCell}>
-          {pos.includes(i) && <div className={styles.pip} />}
+          {pos.includes(i) && <div className={styles.pip} style={{ background: color }} />}
         </div>
       ))}
     </div>
@@ -58,11 +59,11 @@ export default function Domino({
 
   return (
     <div className={cls} onClick={playable && onClick ? onClick : undefined}>
-      <div className={styles.half} style={{ background: `var(--suit-${a})` }}>
+      <div className={styles.half} style={{ background: 'var(--domino-half)' }}>
         <PipGrid n={a} />
       </div>
       <div className={styles.divider} />
-      <div className={styles.half} style={{ background: `var(--suit-${b})` }}>
+      <div className={styles.half} style={{ background: 'var(--domino-half)' }}>
         <PipGrid n={b} />
       </div>
     </div>

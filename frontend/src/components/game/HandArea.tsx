@@ -1,21 +1,17 @@
 import { useGameStore } from '../../store/gameStore'
-import { getValidPlays } from '../../hooks/useValidPlays'
+import { useShallow } from 'zustand/react/shallow'
 import Domino from '../domino/Domino'
 
 export default function HandArea() {
-  const { myHand, myTurn, isSpectator, gameState, emitPlay } = useGameStore(s => ({
+  const { myHand, myTurn, isSpectator, validPlays, emitPlay } = useGameStore(useShallow(s => ({
     myHand:      s.myHand,
     myTurn:      s.myTurn,
     isSpectator: s.isSpectator,
-    gameState:   s.gameState,
+    validPlays:  s.validPlays,
     emitPlay:    s.emitPlay,
-  }))
+  })))
 
   if (isSpectator) return null;
-
-  const trick = gameState?.trick ?? []
-  const trump = gameState?.trump ?? null
-  const valid = myTurn ? getValidPlays(myHand, trump, trick) : []
 
   return (
     <div style={{
@@ -37,7 +33,7 @@ export default function HandArea() {
         justifyContent: 'center', alignItems: 'flex-end',
       }}>
         {myHand.map(([a, b], i) => {
-          const isValid = valid.some(([va, vb]) => va === a && vb === b)
+          const isValid = validPlays.some(([va, vb]) => va === a && vb === b)
           const playable = myTurn && isValid
           return (
             <Domino

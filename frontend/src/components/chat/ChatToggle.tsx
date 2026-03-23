@@ -1,11 +1,12 @@
 import { useGameStore } from '../../store/gameStore'
+import { useShallow } from 'zustand/react/shallow'
 
 export default function ChatToggle() {
-  const { chatOpen, unreadChat, setChatOpen } = useGameStore(s => ({
+  const { chatOpen, unreadChat, setChatOpen } = useGameStore(useShallow(s => ({
     chatOpen:    s.chatOpen,
     unreadChat:  s.unreadChat,
     setChatOpen: s.setChatOpen,
-  }))
+  })))
 
   return (
     <button

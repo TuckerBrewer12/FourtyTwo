@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/gameStore'
+import { useShallow } from 'zustand/react/shallow'
 import Modal from '../shared/Modal'
+import Domino from '../domino/Domino'
 
 export default function BidModal() {
-  const { bidModalOpen, gameState, emitBid, addToast } = useGameStore(s => ({
+  const { bidModalOpen, gameState, myHand, emitBid, addToast } = useGameStore(useShallow(s => ({
     bidModalOpen: s.bidModalOpen,
     gameState:    s.gameState,
+    myHand:       s.myHand,
     emitBid:      s.emitBid,
     addToast:     s.addToast,
-  }))
+  })))
 
   const [selBid, setSelBid] = useState<number | null>(null)
   const [marks, setMarks]   = useState(1)
@@ -22,10 +25,7 @@ export default function BidModal() {
     : hb === 42 ? `42 (${hm} mark${hm > 1 ? 's' : ''})`
     : String(hb)
 
-  const bidValues: number[] = []
-  if (hb !== 0 && hb !== 42) {
-    for (let v = Math.max(30, hb + 1); v <= 42; v++) bidValues.push(v)
-  }
+  const bidValues = gameState?.available_bids ?? []
 
   function submit() {
     if (selBid === null) { addToast('Select a bid first', 'error'); return }
@@ -69,6 +69,18 @@ export default function BidModal() {
         <button onClick={submit} style={accentBtn}>Submit Bid</button>
         <button onClick={pass} style={outlineBtn}>Pass</button>
       </div>
+
+      {/* Hand peek */}
+      {myHand.length > 0 && (
+        <div style={{ marginTop: '.75rem', paddingTop: '.6rem', borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.4rem' }}>
+            Your Hand
+          </div>
+          <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+            {myHand.map(([a, b], i) => <Domino key={i} a={a} b={b} size="sm" />)}
+          </div>
+        </div>
+      )}
     </Modal>
   )
 }

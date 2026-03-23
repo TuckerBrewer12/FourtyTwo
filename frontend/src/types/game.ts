@@ -69,6 +69,13 @@ export interface GameState {
   chat_history: ChatMessage[];
   hand_history: HandHistoryEntry[];
   hand?: Domino[];
+  // Server-computed: never recalculate these on the client
+  team_map: Record<number, 1 | 2>;
+  tile_counts: Record<number, number>;
+  available_bids: number[];
+  total_tricks: number;
+  win_target: number;
+  max_bid: number;
 }
 
 /* ---- Server → Client event payloads ---- */
@@ -102,6 +109,7 @@ export interface SpectatorConfirmedPayload {
 
 export interface GameStartedPayload {
   state: GameState;
+  seat_map: Record<number, 'north' | 'south' | 'east' | 'west'>;
 }
 
 export interface BidPlacedPayload {
@@ -113,6 +121,7 @@ export interface BidPlacedPayload {
   high_bid: number | null;
   high_bidder: number | null;
   high_marks: number | null;
+  available_bids: number[];
 }
 
 export interface BiddingCompletePayload {
@@ -128,16 +137,21 @@ export interface TrumpSetPayload {
   state: GameState;
 }
 
+export type SeatMap = Record<number, 'north' | 'south' | 'east' | 'west'>;
+
 export interface YourTurnPayload {
   hand: Domino[];
   play_turn: number;
   action: 'play';
+  valid_plays: Domino[];
+  seat_map: SeatMap;
 }
 
 export interface WaitingPayload {
   hand: Domino[];
   play_turn: number;
   action: 'wait';
+  seat_map: SeatMap;
 }
 
 export interface DominoPlayedPayload {
@@ -159,6 +173,13 @@ export interface TrickCompletePayload {
   trick_count: number;
 }
 
+export interface GameAbandonedPayload {
+  player_num: number;
+  name: string;
+  message: string;
+  state: GameState;
+}
+
 export interface HandCompletePayload {
   bid_team: number;
   opp_team: number;
@@ -174,6 +195,6 @@ export interface HandCompletePayload {
   team1_marks: number;
   team2_marks: number;
   game_over: boolean;
-  winner_team: number | null;
+  winner_team: 1 | 2;   // hand winner; also game winner when game_over is true
   state: GameState;
 }
