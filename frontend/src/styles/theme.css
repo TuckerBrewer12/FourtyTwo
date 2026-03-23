@@ -1,23 +1,39 @@
 :root {
-  --bg:            #eef6ee;
+  /* Background gradient endpoints */
+  --bg-start:      #e8f0ed;
+  --bg-end:        #f5f7f6;
+  --bg:            #f0f5f3; /* fallback solid */
+
+  /* Surfaces */
   --surface:       #ffffff;
-  --border:        rgba(0,0,0,.08);
+  --surface-soft:  #f4f7f5;
+  --border:        rgba(0,0,0,.06);
   --border-solid:  #e2ebe2;
-  --shadow:        0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
-  --shadow-sm:     0 1px 3px rgba(0,0,0,.08);
+
+  /* Neumorphic shadows */
+  --shadow-neu:    6px 6px 18px rgba(0,0,0,.07), -6px -6px 18px rgba(255,255,255,.90);
+  --shadow-neu-sm: 3px 3px 8px rgba(0,0,0,.06), -3px -3px 8px rgba(255,255,255,.85);
+  --shadow-inset:  inset 2px 2px 5px rgba(0,0,0,.06), inset -2px -2px 5px rgba(255,255,255,.80);
+  --shadow:        var(--shadow-neu);
+  --shadow-sm:     var(--shadow-neu-sm);
   --shadow-lg:     0 8px 32px rgba(0,0,0,.12);
 
-  --table-felt:    #c8e8c8;
-  --table-border:  #8cc8a0;
+  /* Table */
+  --table-felt:    #4d8c75;
+  --table-border:  #3a7060;
+  --table-dot:     rgba(0,0,0,.10);
 
-  --accent:        #2d9e5c;
-  --accent-hover:  #237a48;
-  --accent-light:  rgba(45,158,92,.1);
+  /* Accent — deep forest green */
+  --accent:        #006d5b;
+  --accent-hover:  #00564a;
+  --accent-light:  rgba(0,109,91,.10);
 
+  /* Text */
   --text:          #111827;
   --text-muted:    #6b7280;
   --text-faint:    #9ca3af;
 
+  /* Teams */
   --t1:            #3b82f6;
   --t1-bg:         rgba(59,130,246,.08);
   --t1-border:     rgba(59,130,246,.25);
@@ -25,23 +41,35 @@
   --t2-bg:         rgba(239,68,68,.08);
   --t2-border:     rgba(239,68,68,.25);
 
+  /* Status */
   --danger:        #ef4444;
   --success:       #22c55e;
   --warning:       #f59e0b;
 
-  /* Domino pip colors — colored dots on neutral half background */
-  --suit-0:        transparent; /* Blanks  — no pips    */
-  --suit-1:        #93c5fd;     /* Aces    — light blue */
-  --suit-2:        #15803d;     /* Deuces  — dark green */
-  --suit-3:        #dc2626;     /* Treys   — red        */
-  --suit-4:        #9ca3af;     /* Fours   — grey       */
-  --suit-5:        #1e40af;     /* Fives   — dark blue  */
-  --suit-6:        #ca8a04;     /* Sixes   — dark yellow*/
-  --domino-half:   #f1f5f9;     /* half background — light neutral */
+  /* Dominos — white tile, black pips */
+  --domino-bg:     #ffffff;
+  --domino-pip:    #1a1a1a;
+  --domino-half:   #ffffff;
 
-  --radius-sm:     6px;
-  --radius:        10px;
-  --radius-lg:     16px;
-  --radius-xl:     24px;
+  /* Suit colors — distinct per suit number */
+  --suit-0:        #94a3b8;   /* blanks — slate */
+  --suit-1:        #3b82f6;   /* aces — blue */
+  --suit-2:        #22c55e;   /* deuces — green */
+  --suit-3:        #f59e0b;   /* treys — amber */
+  --suit-4:        #8b5cf6;   /* fours — purple */
+  --suit-5:        #ef4444;   /* fives — red (count domino) */
+  --suit-6:        #0891b2;   /* sixes — cyan */
+
+  /* Domino shadows */
+  --dom-shadow:       0 8px 24px rgba(0,0,0,.09), 0 2px 6px rgba(0,0,0,.06);
+  --dom-shadow-hover: 0 20px 40px rgba(0,0,0,.14), 0 6px 16px rgba(0,0,0,.09);
+  --dom-shadow-lift:  0 24px 48px rgba(0,0,0,.18), 0 8px 20px rgba(0,0,0,.12);
+
+  /* Border radii */
+  --radius-sm:     8px;
+  --radius:        14px;
+  --radius-lg:     20px;
+  --radius-xl:     32px;
+  --radius-pill:   999px;
   --trans:         .15s ease;
 }

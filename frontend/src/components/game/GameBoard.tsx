@@ -1,10 +1,10 @@
 import { useGameStore } from '../../store/gameStore'
 import { useShallow } from 'zustand/react/shallow'
 import ScoreHeader from './ScoreHeader'
+import ScorePanel from './ScorePanel'
 import TrickCenter from './TrickCenter'
 import PlayerZone from './PlayerZone'
 import HandArea from './HandArea'
-import StatusBar from './StatusBar'
 
 // Invert a seat_map {pnum→seat} to {seat→pnum}
 function invertSeatMap(seatMap: Record<number, string> | null): Record<string, number> {
@@ -29,10 +29,11 @@ export default function GameBoard() {
 
   return (
     <div style={{
-      position: 'fixed', inset: 0,
-      display: 'grid',
-      gridTemplateRows: 'auto 1fr auto auto',
-      background: 'var(--bg)',
+      position: 'fixed',
+      inset: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      background: 'linear-gradient(135deg, var(--bg-start) 0%, #f8faf9 50%, var(--bg-end) 100%)',
       overflow: 'hidden',
     }}>
       {/* Spectator banner */}
@@ -47,28 +48,66 @@ export default function GameBoard() {
         </div>
       )}
 
-      {/* Header */}
+      {/* Top bar */}
       <ScoreHeader />
 
-      {/* Game board grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateAreas: '". north ." "west center east" ". south ."',
-        gridTemplateColumns: 'minmax(80px,100px) 1fr minmax(80px,100px)',
-        gridTemplateRows: 'minmax(80px,110px) 1fr minmax(80px,110px)',
-        background: 'var(--bg)',
-        overflow: 'hidden',
-      }}>
-        <div style={{ gridArea: 'north' }}><PlayerZone seat="north" pnum={pNorth} /></div>
-        <div style={{ gridArea: 'west'  }}><PlayerZone seat="west"  pnum={pWest}  /></div>
-        <TrickCenter />
-        <div style={{ gridArea: 'east'  }}><PlayerZone seat="east"  pnum={pEast}  /></div>
-        <div style={{ gridArea: 'south' }}><PlayerZone seat="south" pnum={pSouth} /></div>
-      </div>
+      {/* Main content: sidebar + game area */}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
 
-      {/* Status + Hand */}
-      <StatusBar />
-      <HandArea />
+        {/* Left sidebar */}
+        <ScorePanel />
+
+        {/* Game area */}
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          overflow: 'hidden',
+        }}>
+          {/* Board — fills available space */}
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            padding: '1rem',
+            minHeight: 0,
+          }}>
+            {/* North player */}
+            <PlayerZone seat="north" pnum={pNorth} />
+
+            {/* Table with west/east players flanking */}
+            <div style={{
+              flex: 1,
+              width: '100%',
+              display: 'flex',
+              alignItems: 'stretch',
+              minHeight: 0,
+            }}>
+              {/* West player */}
+              <div style={{ display: 'flex', alignItems: 'center', paddingRight: '.5rem' }}>
+                <PlayerZone seat="west" pnum={pWest} vertical />
+              </div>
+
+              {/* Felt table */}
+              <div style={{ flex: 1, display: 'flex' }}>
+                <TrickCenter />
+              </div>
+
+              {/* East player */}
+              <div style={{ display: 'flex', alignItems: 'center', paddingLeft: '.5rem' }}>
+                <PlayerZone seat="east" pnum={pEast} vertical />
+              </div>
+            </div>
+          </div>
+
+          {/* Hand area — flows naturally below the board, centered */}
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '.75rem 1rem 1rem', flexShrink: 0 }}>
+            <HandArea />
+          </div>
+        </div>
+      </div>
 
       {/* Bidding countdown overlay */}
       {biddingCountdown !== null && (
@@ -78,9 +117,9 @@ export default function GameBoard() {
           pointerEvents: 'none',
         }}>
           <div style={{
-            background: 'var(--surface)', borderRadius: 'var(--radius-lg)',
-            boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)',
-            padding: '1.5rem 2rem', textAlign: 'center', animation: 'slideUp .2s ease',
+            background: 'var(--surface)', borderRadius: 'var(--radius-xl)',
+            boxShadow: 'var(--shadow-neu)', border: '1px solid var(--border)',
+            padding: '1.5rem 2.5rem', textAlign: 'center', animation: 'slideUp .2s ease',
           }}>
             <div style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginBottom: '.3rem' }}>
               Look at your hand — bidding starts in

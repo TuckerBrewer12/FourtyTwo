@@ -10,7 +10,8 @@ html, body, #root {
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: var(--bg);
+  background: linear-gradient(135deg, var(--bg-start) 0%, #f8faf9 50%, var(--bg-end) 100%);
+  background-attachment: fixed;
   color: var(--text);
   font-size: 14px;
   line-height: 1.5;

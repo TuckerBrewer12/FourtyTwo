@@ -16,6 +16,11 @@ export interface Toast {
 }
 
 let toastCounter = 0;
+let biddingTimer: ReturnType<typeof setInterval> | null = null;
+
+function clearBiddingTimer() {
+  if (biddingTimer !== null) { clearInterval(biddingTimer); biddingTimer = null; }
+}
 
 interface GameStore {
   // Screen
@@ -34,6 +39,8 @@ interface GameStore {
   myHand: Domino[];
   myTurn: boolean;
   pendingPlay: Domino | null;
+  lastTrickWinner: number | null;
+  wonTricksPerPlayer: Record<number, Domino[][]>;
   biddingCountdown: number | null;
   validPlays: Domino[];
   seatMap: SeatMap | null;
@@ -90,6 +97,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   myHand: [],
   myTurn: false,
   pendingPlay: null,
+  lastTrickWinner: null,
+  wonTricksPerPlayer: {},
   biddingCountdown: null,
   validPlays: [],
   seatMap: null,
@@ -126,7 +135,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isSpectator: false, currentScreen: 'lobby',
       bidModalOpen: false, trumpModalOpen: false,
       handResultData: null, gameOverData: null, chatOpen: false,
-      unreadChat: 0, statusMsg: 'Waiting…', pendingPlay: null, biddingCountdown: null,
+      unreadChat: 0, statusMsg: 'Waiting…', pendingPlay: null, lastTrickWinner: null, wonTricksPerPlayer: {}, biddingCountdown: null,
       validPlays: [], seatMap: null,
     });
     window.history.replaceState({}, '', '/');
@@ -185,21 +194,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
         gameState: d.state,
         myHand: hand,
         currentScreen: 'game',
-        biddingCountdown: 10,
+        biddingCountdown: 3,
         seatMap: d.seat_map ?? null,
         validPlays: [],
-        statusMsg: `Hand ${d.state.hand_num} — Look at your hand — bidding starts in 10s`,
+        wonTricksPerPlayer: {},
+        statusMsg: `Hand ${d.state.hand_num} — Look at your hand — bidding starts in 3s`,
       });
-      let n = 10;
-      const timer = setInterval(() => {
+      clearBiddingTimer();
+      let n = 3;
+      biddingTimer = setInterval(() => {
         n--;
         if (n <= 0) {
-          clearInterval(timer);
+          clearBiddingTimer();
           set({
             biddingCountdown: null,
             statusMsg: `Hand ${d.state.hand_num} — Bidding starts with P${d.state.bid_turn}`,
           });
-          if (shouldBid) set({ bidModalOpen: true });
+          // Only open if still in bidding phase and this player's turn
+          const gs = get().gameState;
+          if (shouldBid && gs?.phase === 'bidding' && gs?.bid_turn === myPNum) {
+            set({ bidModalOpen: true });
+          }
         } else {
           set({ biddingCountdown: n });
         }
@@ -223,10 +238,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         } : s.gameState,
       }));
       const { myPNum, isSpectator } = get();
-      if (!isSpectator && d.bid_turn === myPNum) set({ bidModalOpen: true });
+      if (!isSpectator && d.bid_turn === myPNum && d.bids_placed < 4) set({ bidModalOpen: true });
     });
 
     socket.on('bidding_complete', (d: BiddingCompletePayload) => {
+      clearBiddingTimer();
       const bs = d.high_bid === 0 ? `Low (${d.high_marks}m)`
         : d.high_bid === 42 ? `42 (${d.high_marks}m)` : `${d.high_bid}`;
       get().addToast(`P${d.high_bidder} won the bid: ${bs}`);
@@ -240,16 +256,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
 
     socket.on('trump_set', (d: TrumpSetPayload) => {
+      clearBiddingTimer();
       const SUIT_NAMES = ['Blanks','Aces','Deuces','Treys','Fours','Fives','Sixes'];
       const tn = d.trump === null ? 'No Trump' : `${SUIT_NAMES[d.trump]}s (${d.trump})`;
       get().addToast(`Trump: ${tn}`);
       set({
         gameState: d.state ?? get().gameState,
+        trumpModalOpen: false,
         statusMsg: `P${d.first_move} leads the first trick`,
       });
     });
 
     socket.on('your_turn', (d: YourTurnPayload) => {
+      clearBiddingTimer();
       set({
         myHand: d.hand ?? get().myHand,
         myTurn: true,
@@ -283,6 +302,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const nm = gs?.players?.[d.winner] ?? `P${d.winner}`;
       get().addToast(`${nm} wins the trick! +${d.trick_score} pts`);
       set(s => ({
+        lastTrickWinner: d.winner,
+        wonTricksPerPlayer: {
+          ...s.wonTricksPerPlayer,
+          [d.winner]: [...(s.wonTricksPerPlayer[d.winner] ?? []), d.trick_dominos],
+        },
         gameState: s.gameState ? {
           ...s.gameState,
           team1_score: d.team1_score,
@@ -292,8 +316,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
           trick_count: d.trick_count,
         } : s.gameState,
       }));
-      // Clear trick after 800ms
+      // Clear active trick display after 800ms (won tricks persist in wonTricksPerPlayer)
       setTimeout(() => set(s => ({
+        lastTrickWinner: null,
         gameState: s.gameState ? { ...s.gameState, trick: [] } : s.gameState,
       })), 800);
     });

@@ -24,7 +24,7 @@ import sys, os, uuid, logging
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flask import Flask, send_from_directory, request, redirect, url_for
+from flask import Flask, send_from_directory, request
 from flask_socketio import SocketIO, join_room as sio_join_room, leave_room as sio_leave_room, emit
 from fourty_two_game import FourtyTwo, InvalidBidError
 from domino import Domino
@@ -126,7 +126,7 @@ def _compute_valid_plays(room, pnum: int) -> list[list[int]]:
     trump = room.game._trump
 
     if not trick_objs:  # leading the trick — all valid
-        return [[d.a, d.b] for d in hand]
+        return [d.to_list() for d in hand]
 
     lead = trick_objs[0]
     if trump is not None and lead.contains(trump):
@@ -137,17 +137,17 @@ def _compute_valid_plays(room, pnum: int) -> list[list[int]]:
     if lead_suit == trump:
         has_suit = any(d.contains(trump) for d in hand)
         if has_suit:
-            return [[d.a, d.b] for d in hand if d.contains(trump)]
+            return [d.to_list() for d in hand if d.contains(trump)]
     else:
         has_suit = any(
             d.contains(lead_suit) and (trump is None or not d.contains(trump))
             for d in hand
         )
         if has_suit:
-            return [[d.a, d.b] for d in hand
+            return [d.to_list() for d in hand
                     if d.contains(lead_suit) and (trump is None or not d.contains(trump))]
 
-    return [[d.a, d.b] for d in hand]
+    return [d.to_list() for d in hand]
 
 
 def _compute_seat_map(my_pnum: int) -> dict[int, str]:
@@ -173,7 +173,7 @@ def _compute_available_bids(room) -> list[int]:
         return []
     hb = room.game._high_bid
     base = hb if (hb is not None and hb > 0) else 29
-    return list(range(max(30, base + 1), 43))
+    return list(range(max(30, base + 1), 42))  # 42/Slam shown separately in BidModal
 
 
 # ---------------------------------------------------------------------------
@@ -444,19 +444,16 @@ class GameRoom:
 # ---------------------------------------------------------------------------
 
 def create_app(test_config=None):
-    static_dir = os.path.join(os.path.dirname(__file__), "static")
-    use_react = os.path.isfile(os.path.join(static_dir, "index.html"))
     app = Flask(
         __name__,
-        static_folder="static" if use_react else None,
-        static_url_path="" if use_react else None,
-        template_folder="templates",
+        static_folder="static",
+        static_url_path="",
     )
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "fortytwo-secret-2025")
     if test_config:
         app.config.update(test_config)
 
-    sio = SocketIO(app, cors_allowed_origins="*", async_mode="threading",
+    sio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet",
                    logger=False, engineio_logger=False)
 
     # ------------------------------------------------------------------ HTTP
@@ -464,11 +461,7 @@ def create_app(test_config=None):
     @app.route("/")
     @app.route("/join/<room_id>")
     def index(**_):
-        if use_react:
-            return send_from_directory(app.static_folder, "index.html")
-        return send_from_directory(
-            os.path.join(os.path.dirname(__file__), "templates"), "index.html"
-        )
+        return send_from_directory(app.static_folder, "index.html")
 
     @app.route("/health")
     def health():

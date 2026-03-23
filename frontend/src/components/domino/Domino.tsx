@@ -15,14 +15,18 @@ function isCount(a: number, b: number) {
   return s > 0 && s % 5 === 0;
 }
 
-function PipGrid({ n }: { n: number }) {
+function PipGrid({ n, suit }: { n: number; suit: number }) {
   const pos = PIP_POS[n] ?? [];
-  const color = `var(--suit-${n})`;
   return (
     <div className={styles.pipGrid}>
       {Array.from({ length: 9 }, (_, i) => (
         <div key={i} className={styles.pipCell}>
-          {pos.includes(i) && <div className={styles.pip} style={{ background: color }} />}
+          {pos.includes(i) && (
+            <div
+              className={styles.pip}
+              style={{ background: `var(--suit-${suit})` }}
+            />
+          )}
         </div>
       ))}
     </div>
@@ -39,32 +43,34 @@ interface DominoProps {
   playable?: boolean;
   invalid?: boolean;
   inTrick?: boolean;
+  vertical?: boolean;
   className?: string;
 }
 
 export default function Domino({
-  a, b, size = 'md', onClick, playable, invalid, inTrick, className,
+  a, b, size = 'md', onClick, playable, invalid, inTrick, vertical, className,
 }: DominoProps) {
   const count = isCount(a, b);
 
   const cls = [
     styles.domino,
     styles[size],
-    count   ? styles.count   : '',
+    count    ? styles.count    : '',
     playable ? styles.playable : '',
     invalid  ? styles.invalid  : '',
     inTrick  ? styles.inTrick  : '',
+    vertical ? styles.vertical : '',
     className ?? '',
   ].filter(Boolean).join(' ');
 
   return (
     <div className={cls} onClick={playable && onClick ? onClick : undefined}>
-      <div className={styles.half} style={{ background: 'var(--domino-half)' }}>
-        <PipGrid n={a} />
+      <div className={styles.half}>
+        <PipGrid n={a} suit={a} />
       </div>
       <div className={styles.divider} />
-      <div className={styles.half} style={{ background: 'var(--domino-half)' }}>
-        <PipGrid n={b} />
+      <div className={styles.half}>
+        <PipGrid n={b} suit={b} />
       </div>
     </div>
   );
