@@ -12,11 +12,11 @@ function TileSilhouette({ sideways }: { sideways?: boolean }) {
   return (
     <div style={{
       position: 'relative',
-      width:  sideways ? 12 : 28,
-      height: sideways ? 28 : 12,
+      width:  sideways ? 18 : 40,
+      height: sideways ? 40 : 18,
       background: 'linear-gradient(135deg, rgba(255,255,255,.75) 0%, rgba(210,225,218,.55) 100%)',
       border: '1px solid rgba(255,255,255,.9)',
-      borderRadius: 3,
+      borderRadius: 4,
       boxShadow: '1px 2px 4px rgba(0,0,0,.12)',
       flexShrink: 0,
     }}>

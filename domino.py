@@ -1,8 +1,10 @@
+from __future__ import annotations
 from functools import total_ordering
+from typing import Union
 
 @total_ordering
 class Domino:
-    def __init__(self, domino: tuple | list) -> None:
+    def __init__(self, domino: Union[tuple, list]) -> None:
         self._domino = tuple(domino)
 
     def high_side(self, trump: int = None, lead_suit: int = None) -> int:
@@ -17,6 +19,10 @@ class Domino:
     def low_side(self, trump: int = None, lead_suit: int = None) -> int:
         s1 = self._domino[0]
         s2 = self._domino[1]
+
+        # Doubles are the highest of their suit — return 7 so they always win
+        if s1 == s2:
+            return 7
 
         if s1 == trump:
             return s2

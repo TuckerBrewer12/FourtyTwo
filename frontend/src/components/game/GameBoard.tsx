@@ -25,7 +25,6 @@ export default function GameBoard() {
   const pNorth = byName.north ?? 1
   const pWest  = byName.west  ?? 4
   const pEast  = byName.east  ?? 2
-  const pSouth = byName.south ?? 3
 
   return (
     <div style={{

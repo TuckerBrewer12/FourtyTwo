@@ -67,13 +67,15 @@ export default function LobbyScreen() {
             padding: '.2rem', gap: '.2rem', marginBottom: '1.25rem',
           }}>
             {(['create', 'join'] as const).map(t => (
-              <button key={t} onClick={() => setTab(t)} style={{
-                flex: 1, padding: '.5rem', borderRadius: '7px', fontWeight: 600,
-                fontSize: '.85rem', transition: 'all var(--trans)',
-                background: tab === t ? 'var(--surface)' : 'transparent',
-                color: tab === t ? 'var(--text)' : 'var(--text-muted)',
-                boxShadow: tab === t ? 'var(--shadow-sm)' : 'none',
-              }}>
+              <button key={t} onClick={() => setTab(t)}
+
+                style={{
+                  flex: 1, padding: '.5rem', borderRadius: '7px', fontWeight: 600,
+                  fontSize: '.85rem', transition: 'all var(--trans)',
+                  background: tab === t ? 'var(--surface)' : 'transparent',
+                  color: tab === t ? 'var(--text)' : 'var(--text-muted)',
+                  boxShadow: tab === t ? 'var(--shadow-sm)' : 'none',
+                }}>
                 {t === 'create' ? 'Create Game' : 'Join Game'}
               </button>
             ))}
@@ -87,28 +89,28 @@ export default function LobbyScreen() {
                   placeholder="e.g. Texas Pete" maxLength={16} style={inputStyle} />
               </Field>
               <Field label="Game Mode">
-                <div style={{ display: 'flex', gap: '.4rem' }}>
-                  {(['points_250', 'marks_7'] as GameMode[]).map(m => (
-                    <button key={m} onClick={() => setMode(m)} style={{
-                      padding: '.4rem .9rem', borderRadius: '20px', fontWeight: 600,
-                      fontSize: '.82rem', cursor: 'pointer',
-                      border: `1.5px solid ${mode === m ? 'var(--accent)' : 'var(--border)'}`,
-                      background: mode === m ? 'var(--accent-light)' : 'transparent',
-                      color: mode === m ? 'var(--accent)' : 'var(--text-muted)',
-                    }}>
-                      {m === 'points_250' ? '250 Points' : '7 Marks'}
-                    </button>
-                  ))}
-                </div>
-                <div style={{
-                  marginTop: '.5rem', background: 'var(--bg)', borderRadius: 'var(--radius)',
-                  padding: '.7rem', fontSize: '.8rem', color: 'var(--text-muted)', lineHeight: 1.55,
-                }}>
-                  <strong style={{ color: 'var(--accent)' }}>
-                    {mode === 'points_250' ? '250 Points' : '7 Marks'}
-                  </strong>{' — '}{MODE_INFO[mode]}
-                </div>
-              </Field>
+                  <div style={{ display: 'flex', gap: '.4rem' }}>
+                    {(['points_250', 'marks_7'] as GameMode[]).map(m => (
+                      <button key={m} onClick={() => setMode(m)} style={{
+                        padding: '.4rem .9rem', borderRadius: '20px', fontWeight: 600,
+                        fontSize: '.82rem', cursor: 'pointer',
+                        border: `1.5px solid ${mode === m ? 'var(--accent)' : 'var(--border)'}`,
+                        background: mode === m ? 'var(--accent-light)' : 'transparent',
+                        color: mode === m ? 'var(--accent)' : 'var(--text-muted)',
+                      }}>
+                        {m === 'points_250' ? '250 Points' : '7 Marks'}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{
+                    marginTop: '.5rem', background: 'var(--bg)', borderRadius: 'var(--radius)',
+                    padding: '.7rem', fontSize: '.8rem', color: 'var(--text-muted)', lineHeight: 1.55,
+                  }}>
+                    <strong style={{ color: 'var(--accent)' }}>
+                      {mode === 'points_250' ? '250 Points' : '7 Marks'}
+                    </strong>{' — '}{MODE_INFO[mode]}
+                  </div>
+                </Field>
               <Btn onClick={create}>Create Game</Btn>
               <GhostBtn onClick={openRules}>📖 Rules</GhostBtn>
             </div>
@@ -130,6 +132,31 @@ export default function LobbyScreen() {
             </div>
           )}
         </div>
+
+        {/* First Time? tutorial button */}
+        <button onClick={() => useGameStore.setState({ currentScreen: 'tutorial' })} style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.5rem',
+          marginTop: '1rem', width: '100%',
+          background: 'linear-gradient(135deg, var(--accent), #008c73)',
+          color: '#fff', padding: '.7rem 1.2rem',
+          borderRadius: 'var(--radius-pill)', fontWeight: 700, fontSize: '.88rem',
+          border: 'none', cursor: 'pointer',
+          boxShadow: '0 4px 16px rgba(0,109,91,.3)',
+          transition: 'all .2s ease',
+          letterSpacing: '.02em',
+        }}
+          onMouseOver={e => {
+            e.currentTarget.style.transform = 'translateY(-2px)'
+            e.currentTarget.style.boxShadow = '0 6px 24px rgba(0,109,91,.4)'
+          }}
+          onMouseOut={e => {
+            e.currentTarget.style.transform = 'translateY(0)'
+            e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,109,91,.3)'
+          }}
+        >
+          <span style={{ fontSize: '1.1rem' }}>?</span>
+          First Time? Take the Tour
+        </button>
       </div>
     </div>
   )

@@ -55,15 +55,20 @@ export default function BidModal() {
       </div>
 
       {/* Marks stepper (only for Low/42) */}
-      {(selBid === 0 || selBid === 42) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', margin: '.5rem 0', padding: '.65rem', background: 'var(--bg)', borderRadius: 'var(--radius)' }}>
-          <span style={{ fontSize: '.82rem', color: 'var(--text-muted)' }}>Marks:</span>
-          <button onClick={() => setMarks(m => Math.max(1, m - 1))} style={stepBtn}>−</button>
-          <span style={{ fontWeight: 700, fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>{marks}</span>
-          <button onClick={() => setMarks(m => Math.min(5, m + 1))} style={stepBtn}>+</button>
-          <span style={{ fontSize: '.78rem', color: 'var(--text-faint)' }}>(current: {hm})</span>
-        </div>
-      )}
+      {(selBid === 0 || selBid === 42) && (() => {
+        // Must beat current high: if high is already Low/42, need hm+1; otherwise hm (min 1)
+        const minMarks = (hb === 0 || hb === 42) ? hm + 1 : 1
+        const maxMarks = Math.min(5, hm + 1)
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', margin: '.5rem 0', padding: '.65rem', background: 'var(--bg)', borderRadius: 'var(--radius)' }}>
+            <span style={{ fontSize: '.82rem', color: 'var(--text-muted)' }}>Marks:</span>
+            <button onClick={() => setMarks(m => Math.max(minMarks, m - 1))} style={stepBtn}>−</button>
+            <span style={{ fontWeight: 700, fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>{marks < minMarks ? minMarks : marks}</span>
+            <button onClick={() => setMarks(m => Math.min(maxMarks, m + 1))} style={stepBtn}>+</button>
+            <span style={{ fontSize: '.78rem', color: 'var(--text-faint)' }}>(min: {minMarks})</span>
+          </div>
+        )
+      })()}
 
       <div style={{ display: 'flex', gap: '.5rem', marginTop: '.75rem' }}>
         <button onClick={submit} style={accentBtn}>Submit Bid</button>

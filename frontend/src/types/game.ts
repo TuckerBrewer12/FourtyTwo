@@ -16,7 +16,8 @@ export type Screen =
   | 'spectate-offer'
   | 'waiting'
   | 'game'
-  | 'gameover';
+  | 'gameover'
+  | 'tutorial';
 
 export interface TrickEntry {
   player: number;

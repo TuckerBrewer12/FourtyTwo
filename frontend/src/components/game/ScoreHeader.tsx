@@ -76,7 +76,7 @@ export default function ScoreHeader() {
       {/* Right icons */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
         <button
-          onClick={() => useGameStore.setState({ rulesModalOpen: true })}
+          onClick={() => useGameStore.setState({ settingsModalOpen: true })}
           style={{
             width: 36, height: 36, borderRadius: '50%',
             background: 'var(--surface-soft)',
@@ -85,7 +85,7 @@ export default function ScoreHeader() {
             fontSize: '1rem', cursor: 'pointer',
             boxShadow: 'var(--shadow-neu-sm)',
           }}
-          title="Rules"
+          title="Settings"
         >
           ⚙
         </button>

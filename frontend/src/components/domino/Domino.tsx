@@ -1,4 +1,5 @@
 import styles from './Domino.module.css'
+import { useGameStore } from '../../store/gameStore'
 
 const PIP_POS: Record<number, number[]> = {
   0: [],
@@ -50,7 +51,8 @@ interface DominoProps {
 export default function Domino({
   a, b, size = 'md', onClick, playable, invalid, inTrick, vertical, className,
 }: DominoProps) {
-  const count = isCount(a, b);
+  const showCountMarkers = useGameStore(s => s.showCountMarkers);
+  const count = showCountMarkers && isCount(a, b);
 
   const cls = [
     styles.domino,

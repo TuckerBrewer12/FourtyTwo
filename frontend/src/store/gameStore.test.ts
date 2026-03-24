@@ -85,7 +85,7 @@ describe('useGameStore Game Flow', () => {
         });
 
         let state = useGameStore.getState().gameState;
-        expect(state.high_bid).toBe(30);
+        expect(state!.high_bid).toBe(30);
 
         // 5. P2, P3, P4 pass
         callbacks['bid_placed']({ player_num: 2, bid: -1, marks: 1, bid_turn: 3, bids_placed: 2, high_bid: 30, high_bidder: 1, high_marks: 1, available_bids: [31, 32, 42] });

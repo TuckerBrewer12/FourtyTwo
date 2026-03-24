@@ -65,7 +65,7 @@ export default function HandResultModal() {
                 {gained > 0 ? `+${gained} earned` : 'scored 0'}
               </div>
               <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: '.25rem' }}>
-                {mode === 'marks_7' ? `${marks} marks` : `${total} / ${gameState?.win_target ?? 250} total`}
+                {mode === 'marks_7' ? `${marks}/7 marks` : `${total} / ${gameState?.win_target ?? 250} total`}
               </div>
             </div>
           )
@@ -86,7 +86,9 @@ export default function HandResultModal() {
       )}
 
       <p style={{ fontSize: '.84rem', color: 'var(--text-muted)', marginBottom: '.75rem' }}>
-        T{d.bid_team} bid {bidStr} — {d.made ? 'made it!' : 'they were set!'}
+        T{d.bid_team} bid {bidStr} — {d.made
+          ? (d.high_bid === 0 ? 'stayed low!' : 'made it!')
+          : (d.high_bid === 0 ? 'took count — set!' : 'they were set!')}
       </p>
 
       <button onClick={closeAndNext} style={{

@@ -18,6 +18,27 @@ export interface Toast {
 let toastCounter = 0;
 let biddingTimer: ReturnType<typeof setInterval> | null = null;
 
+// --- Persisted settings helpers ---
+const SETTINGS_KEY = 'fortytwo_settings';
+
+interface PersistedSettings {
+  showCountMarkers: boolean;
+}
+
+const DEFAULT_SETTINGS: PersistedSettings = { showCountMarkers: true };
+
+function loadSettings(): PersistedSettings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+  } catch { /* ignore */ }
+  return { ...DEFAULT_SETTINGS };
+}
+
+function saveSettings(s: PersistedSettings) {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch { /* ignore */ }
+}
+
 function clearBiddingTimer() {
   if (biddingTimer !== null) { clearInterval(biddingTimer); biddingTimer = null; }
 }
@@ -44,6 +65,10 @@ interface GameStore {
   biddingCountdown: number | null;
   validPlays: Domino[];
   seatMap: SeatMap | null;
+
+  // Settings
+  showCountMarkers: boolean;
+  settingsModalOpen: boolean;
 
   // Modal visibility
   bidModalOpen: boolean;
@@ -72,6 +97,7 @@ interface GameStore {
   removeToast: (id: number) => void;
   goLobby: () => void;
   setChatOpen: (open: boolean) => void;
+  setShowCountMarkers: (v: boolean) => void;
   initSocket: () => void;
 
   // Emit helpers
@@ -102,6 +128,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   biddingCountdown: null,
   validPlays: [],
   seatMap: null,
+  showCountMarkers: loadSettings().showCountMarkers,
+  settingsModalOpen: false,
   bidModalOpen: false,
   trumpModalOpen: false,
   handResultData: null,
@@ -128,6 +156,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     chatOpen,
     unreadChat: chatOpen ? 0 : s.unreadChat,
   })),
+
+  setShowCountMarkers: (v) => {
+    set({ showCountMarkers: v });
+    saveSettings({ ...loadSettings(), showCountMarkers: v });
+  },
 
   goLobby: () => {
     set({
@@ -198,6 +231,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         seatMap: d.seat_map ?? null,
         validPlays: [],
         wonTricksPerPlayer: {},
+        gameOverData: null,
+        handResultData: null,
         statusMsg: `Hand ${d.state.hand_num} — Look at your hand — bidding starts in 3s`,
       });
       clearBiddingTimer();
@@ -248,7 +283,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       get().addToast(`P${d.high_bidder} won the bid: ${bs}`);
       const { myPNum, isSpectator } = get();
       set({ gameState: d.state ?? get().gameState });
-      if (!isSpectator && d.high_bidder === myPNum) {
+      // Low bid (0) has no trump — server skips trump selection automatically
+      if (d.high_bid === 0) {
+        set({ statusMsg: `P${d.high_bidder} bid Low — no trump!` });
+      } else if (!isSpectator && d.high_bidder === myPNum) {
         set({ trumpModalOpen: true, statusMsg: 'You won the bid — select trump!' });
       } else {
         set({ statusMsg: `P${d.high_bidder} is selecting trump…` });
@@ -274,7 +312,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         myTurn: true,
         validPlays: d.valid_plays ?? [],
         seatMap: d.seat_map ?? get().seatMap,
-        statusMsg: '⭐ Your turn! Play a domino.',
+        statusMsg: '🎯 Your turn — tap a domino to play!',
       });
     });
 
@@ -417,7 +455,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   emitNewHand: () => {
     get().socket?.emit('new_hand', { room_id: get().myRoom });
-    set({ handResultData: null, myHand: [], statusMsg: 'New hand starting…' });
+    set({ handResultData: null, myHand: [], statusMsg: 'Starting…' });
   },
 
   emitChat: (msg) => {

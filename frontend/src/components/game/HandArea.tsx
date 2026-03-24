@@ -41,15 +41,19 @@ export default function HandArea() {
       {/* Status message */}
       {statusMsg && (
         <div style={{
-          background: 'rgba(255,255,255,.85)',
+          background: myTurn
+            ? 'linear-gradient(135deg, rgba(16,185,129,.12), rgba(255,255,255,.92))'
+            : 'rgba(255,255,255,.85)',
           backdropFilter: 'blur(8px)',
           borderRadius: 'var(--radius-pill)',
-          padding: '.25rem .85rem',
-          fontSize: '.72rem',
-          fontWeight: 600,
+          padding: myTurn ? '.35rem 1.1rem' : '.25rem .85rem',
+          fontSize: myTurn ? '.8rem' : '.72rem',
+          fontWeight: 700,
           color: myTurn ? 'var(--accent)' : 'var(--text-muted)',
           whiteSpace: 'nowrap',
-          boxShadow: '0 2px 8px rgba(0,0,0,.06)',
+          border: myTurn ? '1.5px solid rgba(16,185,129,.3)' : 'none',
+          animation: myTurn ? 'turnPulse 2s ease-in-out infinite' : 'none',
+          letterSpacing: myTurn ? '.02em' : 'normal',
         }}>
           {statusMsg}
         </div>

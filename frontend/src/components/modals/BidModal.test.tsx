@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
-import React from 'react';
+// React import not needed with JSX transform
 import { useGameStore } from '../../store/gameStore';
 import BidModal from './BidModal';
 import TrumpModal from './TrumpModal';

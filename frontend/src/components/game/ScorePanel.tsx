@@ -14,15 +14,10 @@ export default function ScorePanel() {
 
   // Which team am I on?
   const myTeam = myPNum ? (gs?.team_map?.[myPNum] ?? null) : null
-  const oppTeam = myTeam === 1 ? 2 : myTeam === 2 ? 1 : null
 
   // Scores for display
-  const myScore  = myTeam === 1 ? gs?.team1_score  : gs?.team2_score
-  const oppScore = oppTeam === 1 ? gs?.team1_score : gs?.team2_score
   const myTotal  = myTeam === 1 ? gs?.team1_total  : gs?.team2_total
-  const oppTotal = oppTeam === 1 ? gs?.team1_total : gs?.team2_total
   const myMarks  = myTeam === 1 ? gs?.team1_marks  : gs?.team2_marks
-  const oppMarks = oppTeam === 1 ? gs?.team1_marks : gs?.team2_marks
 
   // Opponent player numbers
   const opponents = myPNum && gs?.players

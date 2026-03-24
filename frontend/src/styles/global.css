@@ -32,3 +32,7 @@ img { display: block; max-width: 100%; }
 @keyframes pulse    { 0%,100% { opacity:1; transform:scale(1) } 50% { opacity:.45; transform:scale(.65) } }
 @keyframes domDrop  { from { transform: scale(.82); opacity: .3 } to { transform: scale(1); opacity: 1 } }
 @keyframes bounce   { 0%,100% { transform: scale(1) } 50% { transform: scale(1.12) } }
+@keyframes turnPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(16,185,129,.25), 0 2px 8px rgba(0,0,0,.06); }
+  50%      { box-shadow: 0 0 20px rgba(16,185,129,.45), 0 2px 12px rgba(0,0,0,.1); }
+}

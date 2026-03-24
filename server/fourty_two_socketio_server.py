@@ -450,6 +450,7 @@ def create_app(test_config=None):
         static_url_path="",
     )
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "fortytwo-secret-2025")
+    app.config["TEMPLATES_AUTO_RELOAD"] = True
     if test_config:
         app.config.update(test_config)
 
@@ -462,6 +463,42 @@ def create_app(test_config=None):
     @app.route("/join/<room_id>")
     def index(**_):
         return send_from_directory(app.static_folder, "index.html")
+
+    @app.route("/api/fill-bots/<room_id>")
+    def fill_bots(room_id):
+        """Fill remaining seats with server-side bots for testing."""
+        room_id = room_id.strip().upper()
+        if room_id not in _rooms:
+            return {"ok": False, "error": "Room not found"}, 404
+        room = _rooms[room_id]
+        if room.phase != "waiting":
+            return {"ok": False, "error": "Game already started"}, 400
+
+        bot_names = ["Bot-A", "Bot-B", "Bot-C"]
+        added = []
+        bi = 0
+        while len(room.players) < 4 and bi < len(bot_names):
+            bot_sid = f"bot-{room_id}-{bi}"
+            pnum, err = room.add_player(bot_sid, bot_names[bi])
+            if err:
+                break
+            sio_join_room(room_id, sid=bot_sid, namespace="/")
+            added.append({"num": pnum, "name": bot_names[bi]})
+            sio.emit("player_joined", {
+                "player_num": pnum, "name": bot_names[bi], "state": room.get_state()
+            }, room=room_id)
+            bi += 1
+
+        # If room is now full, start the game
+        if room.all_players_present():
+            room.start_hand()
+            for p, s in room.sid_by_num.items():
+                sio.emit("game_started", {
+                    "state": room.get_state(p),
+                    "seat_map": _compute_seat_map(p),
+                }, room=s)
+
+        return {"ok": True, "added": added, "total": len(room.players)}
 
     @app.route("/health")
     def health():
@@ -653,14 +690,28 @@ def create_app(test_config=None):
                 hm   = 1
                 room.game.set_forced_bid(hb, hbid, hm)
 
-            room.phase      = "trump_selection"
             room.first_move = hb
             room.play_turn  = hb
 
-            sio.emit("bidding_complete", {
-                "high_bidder": hb, "high_bid": hbid, "high_marks": hm,
-                "state": room.get_state(),
-            }, room=room.room_id)
+            # Low bid (0) has no trump — skip trump selection and start playing
+            if hbid == 0:
+                room.phase = "playing"
+                room.trick_count = 0
+                room.game.set_trump(None)
+                sio.emit("bidding_complete", {
+                    "high_bidder": hb, "high_bid": hbid, "high_marks": hm,
+                    "state": room.get_state(),
+                }, room=room.room_id)
+                sio.emit("trump_set", {
+                    "trump": None, "first_move": room.first_move, "state": room.get_state()
+                }, room=room.room_id)
+                _push_turn(room, sio)
+            else:
+                room.phase = "trump_selection"
+                sio.emit("bidding_complete", {
+                    "high_bidder": hb, "high_bid": hbid, "high_marks": hm,
+                    "state": room.get_state(),
+                }, room=room.room_id)
 
     # ---------- trump selection
 
@@ -800,7 +851,7 @@ def create_app(test_config=None):
         else:
             sender = room.spectators.get(sid, "Spectator")
 
-        entry = {"sender": sender, "msg": msg, "spectator": is_spec}
+        entry = {"sender": sender, "msg": msg, "spectator": is_spec, "player_num": pnum}
         room.chat_history.append(entry)
         if len(room.chat_history) > MAX_CHAT:
             room.chat_history = room.chat_history[-MAX_CHAT:]
@@ -827,8 +878,17 @@ def create_app(test_config=None):
         room = _rooms[room_id]
         if room.get_player_num(request.sid) is None:
             emit("error", {"message": "Only players can start a new hand"}); return
-        if room.phase != "hand_complete":
+        if room.phase not in ("hand_complete", "game_complete"):
             emit("error", {"message": "Hand is not yet complete"}); return
+
+        # If the game was over, reset cumulative scores for a fresh game
+        if room.phase == "game_complete":
+            room.team1_total = 0
+            room.team2_total = 0
+            room.team1_marks = 0
+            room.team2_marks = 0
+            room.hand_num    = 0
+            room.hand_history = []
 
         room.hand_num += 1
         room.start_hand()

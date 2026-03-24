@@ -1,6 +1,23 @@
 import { useGameStore } from '../../store/gameStore'
 import { useShallow } from 'zustand/react/shallow'
 
+function copyToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text)
+  }
+  // Fallback for non-HTTPS (e.g. local IP access)
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.style.position = 'fixed'
+  ta.style.opacity = '0'
+  document.body.appendChild(ta)
+  ta.focus()
+  ta.select()
+  document.execCommand('copy')
+  document.body.removeChild(ta)
+  return Promise.resolve()
+}
+
 export default function WaitingRoom() {
   const { gameState, myPNum, myRoom, addToast } = useGameStore(useShallow(s => ({
     gameState: s.gameState,
@@ -14,12 +31,23 @@ export default function WaitingRoom() {
   const inviteUrl = `${window.location.origin}/join/${myRoom}`
 
   function copyCode() {
-    navigator.clipboard.writeText(myRoom ?? '').catch(() => {})
-    addToast('Room code copied!', 'success')
+    copyToClipboard(myRoom ?? '').then(() => addToast('Room code copied!', 'success'))
   }
   function copyUrl() {
-    navigator.clipboard.writeText(inviteUrl).catch(() => {})
-    addToast('Invite link copied!', 'success')
+    copyToClipboard(inviteUrl).then(() => addToast('Invite link copied!', 'success'))
+  }
+
+  function fillBots() {
+    fetch(`/api/fill-bots/${myRoom}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) {
+          addToast(`Added ${d.added.length} bot${d.added.length > 1 ? 's' : ''} — game starting!`, 'success')
+        } else {
+          addToast(d.error || 'Failed to add bots', 'error')
+        }
+      })
+      .catch(() => addToast('Failed to connect', 'error'))
   }
 
   return (
@@ -73,7 +101,6 @@ export default function WaitingRoom() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.6rem' }}>
             {[1, 2, 3, 4].map(p => {
               const name   = players[p]
-              // team_map from server; static fallback before gameState arrives (P1,P3→T1; P2,P4→T2)
               const team   = (gameState?.team_map?.[p] ?? ({ 1: 1, 2: 2, 3: 1, 4: 2 } as Record<number, 1|2>)[p]) as 1 | 2
               const isMe   = p === myPNum
               const tColor = team === 1 ? 'var(--t1)' : 'var(--t2)'
@@ -119,6 +146,18 @@ export default function WaitingRoom() {
               ? 'All players present — starting game!'
               : `${filled}/4 players joined — waiting for ${4 - filled} more…`}
           </p>
+
+          {/* Quick Test — server-side bots, no popup issues */}
+          {filled < 4 && (
+            <button onClick={fillBots} style={{
+              width: '100%', padding: '.6rem', borderRadius: 'var(--radius)',
+              background: 'transparent', border: '1.5px dashed var(--border)',
+              color: 'var(--text-muted)', fontSize: '.82rem', fontWeight: 600,
+              cursor: 'pointer',
+            }}>
+              Quick Test — Fill with {4 - filled} bot{4 - filled > 1 ? 's' : ''}
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -155,15 +155,22 @@ class test_fourtytwo(unittest.TestCase):
         self.assertEqual(self._game.get_high_bid(), (3, 42, 3))
     
     def test_42_3_marks_outbids_42(self):
+        # Must go through 2 marks before reaching 3 — can't jump +2
         self._game.bid(1, 42, 1)
-        self._game.bid(2, -1, 1)
+        self._game.bid(2, 42, 2)  # step up to 2 marks first
         self._game.bid(3, 42, 3)
         self.assertEqual(self._game.get_high_bid(), (3, 42, 3))
 
+    def test_42_cannot_jump_to_3_marks_from_1(self):
+        # Jumping from 1 mark directly to 3 marks is invalid
+        self._game.bid(1, 42, 1)
+        with self.assertRaises(InvalidBidError):
+            self._game.bid(2, 42, 3)
 
     def test_low_3_marks_outbids_42_with_one_mark(self):
+        # Must step through 2 marks before bidding 3
         self._game.bid(1, 42, 1)
-        self._game.bid(2, -1, 1)
+        self._game.bid(2, 42, 2)  # step up to 2 marks
         self._game.bid(3, 0, 3)
         self._game.bid(4, -1, 1)
         self.assertEqual(self._game.get_high_bid(), (3, 0, 3))

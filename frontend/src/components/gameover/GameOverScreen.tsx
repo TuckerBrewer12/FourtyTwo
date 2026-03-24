@@ -52,7 +52,7 @@ export default function GameOverScreen() {
                     Team {team} (P{team === 1 ? '1 & 3' : '2 & 4'})
                   </div>
                   <div style={{ fontSize: '2.5rem', fontWeight: 900, color }}>{total}</div>
-                  <div style={{ fontSize: '.9rem', color: 'var(--text-muted)' }}>{marks} mark{marks !== 1 ? 's' : ''}</div>
+                  <div style={{ fontSize: '.9rem', color: 'var(--text-muted)' }}>{marks}/7 marks</div>
                 </div>
               )
             })}
@@ -86,7 +86,7 @@ export default function GameOverScreen() {
             </table>
           )}
 
-          <button onClick={() => { useGameStore.setState({ gameOverData: null }); emitNewHand() }} style={{
+          <button onClick={() => emitNewHand()} style={{
             background: 'var(--accent)', color: '#fff', padding: '.75rem',
             borderRadius: 'var(--radius)', fontWeight: 700, border: 'none', cursor: 'pointer', fontSize: '.95rem',
           }}>Play Again</button>

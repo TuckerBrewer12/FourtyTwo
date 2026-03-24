@@ -90,8 +90,7 @@ class FourtyTwo:
                 else:
                     self.set_high_bid(player, bid, marks)
                     return True
-            if marks > (self._high_marks + 2):
-                #print("Marks must be less than or equal to the current high marks + 2")  
+            if marks > (self._high_marks + 1):
                 return False
             elif marks <= self._high_marks:
                 #print("Marks must be greater than or equal to the current high marks")
