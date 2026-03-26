@@ -428,9 +428,8 @@ img { display: block; max-width: 100%; }
   100% { transform: translateX(120px); opacity: 0; }
 }
 
-/* no-animations override: kills all durations globally
-   EXCEPT elements marked data-keep-transition (trick slide tiles) */
-body.no-anim *:not([data-keep-transition]), body.no-anim *::before, body.no-anim *::after {
+/* no-animations override: kills all durations globally */
+body.no-anim *, body.no-anim *::before, body.no-anim *::after {
   animation-duration: 0.001ms !important;
   animation-delay:    0ms    !important;
   transition-duration: 0.001ms !important;
