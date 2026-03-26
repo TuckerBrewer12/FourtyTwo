@@ -118,12 +118,14 @@ export default function TrickCenter() {
     return true
   }, [])
 
-  // Won-tricks stacked at edges
+  // Won-tricks stacked at edges — always stack vertically (column)
+  // so each trick is one row of 4 xs dominos, and multiple tricks
+  // go on top of each other = 2×4, 3×4, etc.
   const STACK_ANCHOR: Record<string, React.CSSProperties> = {
-    north: { top: 6,    left: '50%',  transform: 'translateX(-50%)', flexDirection: 'column' as const },
-    south: { bottom: 6, left: '50%',  transform: 'translateX(-50%)', flexDirection: 'column' as const },
-    east:  { right: 6,  top: '50%',   transform: 'translateY(-50%)', flexDirection: 'row' as const },
-    west:  { left: 6,   top: '50%',   transform: 'translateY(-50%)', flexDirection: 'row' as const },
+    north: { top: 6,    left: '50%',  transform: 'translateX(-50%)' },
+    south: { bottom: 6, left: '50%',  transform: 'translateX(-50%)' },
+    east:  { right: 6,  top: '50%',   transform: 'translateY(-50%)' },
+    west:  { left: 6,   top: '50%',   transform: 'translateY(-50%)' },
   }
 
   return (
@@ -256,6 +258,7 @@ export default function TrickCenter() {
               position: 'absolute',
               ...anchor,
               display: 'flex',
+              flexDirection: 'column',
               gap: '.15rem',
               zIndex: 1,
               alignItems: 'center',

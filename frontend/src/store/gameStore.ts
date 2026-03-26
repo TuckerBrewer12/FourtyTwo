@@ -121,7 +121,7 @@ interface GameStore {
   lastTrickScore: number;          // most recent trick score for display
 
   // ---- TRICK RESULT BADGE ----
-  trickResult: { winnerName: string; dominos: number[][]; score: number } | null;
+  trickResult: { winnerName: string; dominos: number[][]; score: number; exiting: boolean } | null;
 
   // ---- Actions ----
   setScreen: (s: Screen) => void;
@@ -418,15 +418,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const nm = gs?.players?.[d.winner] ?? `P${d.winner}`;
       get().addToast(`${nm} wins the trick! +${d.trick_score} pts`);
 
-      // Set trick result badge
+      // Set trick result badge (show for 1.6s, then mark as exiting for 0.35s slide-out)
       set({
         trickResult: {
           winnerName: nm,
           dominos: d.trick_dominos ?? [],
           score: d.trick_score,
+          exiting: false,
         },
       });
-      setTimeout(() => set({ trickResult: null }), 3200);
+      setTimeout(() => set(s => {
+        if (!s.trickResult) return {};
+        return { trickResult: { ...s.trickResult, exiting: true } };
+      }), 1600);
+      setTimeout(() => set({ trickResult: null }), 2000);
 
       // Determine winner's seat for sweep animation
       const seatMap = get().seatMap;
