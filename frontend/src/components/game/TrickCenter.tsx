@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react'
 import { useGameStore } from '../../store/gameStore'
 import { useShallow } from 'zustand/react/shallow'
 import Domino from '../domino/Domino'
@@ -10,12 +11,64 @@ function isTrumpDomino(a: number, b: number, trump: number | null): boolean {
   return a === trump || b === trump;
 }
 
-// Direction-aware slide-in animation per seat
-const SEAT_ANIM: Record<string, string> = {
-  north: 'trickTileFromNorth',
-  south: 'trickTileFromSouth',
-  east:  'trickTileFromEast',
-  west:  'trickTileFromWest',
+/* ── Starting offsets per seat ──
+   The tile starts offset toward the player's position and
+   slides to transform:none (the center). Using translate + scale + opacity. */
+const START_OFFSET: Record<string, React.CSSProperties> = {
+  south: { transform: 'translateY(45vh)  scale(0.45)', opacity: 0 },
+  north: { transform: 'translateY(-45vh) scale(0.45)', opacity: 0 },
+  east:  { transform: 'translateX(40vw)  scale(0.45)', opacity: 0 },
+  west:  { transform: 'translateX(-40vw) scale(0.45)', opacity: 0 },
+}
+const LANDED: React.CSSProperties = { transform: 'none', opacity: 1 }
+
+const SLIDE_TRANSITION = 'transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.25s ease'
+
+/* ── Individual tile wrapper that animates itself on mount ── */
+function SlidingTile({
+  seat,
+  children,
+  shouldAnimate,
+}: {
+  seat: string
+  children: React.ReactNode
+  shouldAnimate: boolean
+}) {
+  const [landed, setLanded] = useState(!shouldAnimate)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!shouldAnimate) return
+    // Force the browser to paint the element at its starting offset
+    // BEFORE we add the transition. Double-rAF ensures the initial
+    // styles have been committed to the rendering pipeline.
+    const el = ref.current
+    if (!el) return
+    // Read a layout property to force style recalculation
+    void el.offsetHeight
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setLanded(true)
+      })
+    })
+  }, [shouldAnimate])
+
+  const startStyle = START_OFFSET[seat] ?? START_OFFSET.south
+
+  return (
+    <div
+      ref={ref}
+      data-keep-transition
+      style={{
+        ...(landed ? LANDED : startStyle),
+        transition: landed ? SLIDE_TRANSITION : 'none',
+        filter: 'drop-shadow(0 8px 18px rgba(0,0,0,.30))',
+        willChange: 'transform, opacity',
+      }}
+    >
+      {children}
+    </div>
+  )
 }
 
 export default function TrickCenter() {
@@ -41,6 +94,18 @@ export default function TrickCenter() {
       pnumToSeat[Number(pnum)] = seat
     }
   }
+
+  /* Track which tiles have already been rendered so we only animate
+     the NEWEST addition to the trick. Once a tile has appeared we
+     never re-animate it. We clear the set when the trick resets. */
+  const seenPlayers = useRef<Set<number>>(new Set())
+  const prevTrickLen = useRef(0)
+
+  // Reset seen set when trick shrinks (new trick started)
+  if (trick.length < prevTrickLen.current) {
+    seenPlayers.current.clear()
+  }
+  prevTrickLen.current = trick.length
 
   // Won-tricks stacked at edges — each trick is a row of 4,
   // multiple tricks stack vertically (north/south) or horizontally (east/west)
@@ -118,31 +183,24 @@ export default function TrickCenter() {
           transform: 'translate(-50%, -50%)',
           zIndex: 2,
         }}>
-          {trick.map((item, i) => {
+          {trick.map((item) => {
             const seat = pnumToSeat[item.player] ?? 'south'
-            const animName = SEAT_ANIM[seat] ?? 'trickTileIn'
-            // Already-placed tiles: no delay. The LATEST tile (just played)
-            // starts immediately — the slide covers the full distance from
-            // the player's area so there's no gap/teleport.
-            const isLatest = i === trick.length - 1
+            // Only animate tiles we haven't seen before
+            const isNew = !seenPlayers.current.has(item.player)
+            if (isNew) seenPlayers.current.add(item.player)
 
             return (
-              <div
+              <SlidingTile
                 key={`t-${item.player}`}
-                style={{
-                  // 0.6s for the full-screen slide; earlier tiles already resting
-                  animation: isLatest
-                    ? `${animName} 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) both`
-                    : `trickTileIn 0.35s ease both`,
-                  filter: 'drop-shadow(0 8px 18px rgba(0,0,0,.30))',
-                }}
+                seat={seat}
+                shouldAnimate={isNew}
               >
                 <Domino
                   a={item.domino[0]} b={item.domino[1]}
                   size="lg" vertical
                   isTrump={isTrumpDomino(item.domino[0], item.domino[1], trump)}
                 />
-              </div>
+              </SlidingTile>
             )
           })}
         </div>
@@ -178,7 +236,6 @@ export default function TrickCenter() {
       )}
 
       {/* ── Won-tricks stacked near each player's edge ── */}
-      {/* Each trick = 1 row of 4 xs dominos; multiple tricks stack */}
       {seatMap && Object.entries(wonTricksPerPlayer).map(([pnumStr, tricks]) => {
         const pnum = Number(pnumStr)
         const seat = seatMap[pnum]
