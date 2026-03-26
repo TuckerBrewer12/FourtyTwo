@@ -34,100 +34,77 @@ function TrumpRevealOverlay({ suit }: { suit: number }) {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'rgba(0,0,0,.45)',
-      backdropFilter: 'blur(6px)',
-      animation: 'fadeIn .15s ease',
+      background: 'rgba(0,0,0,.5)',
+      backdropFilter: 'blur(8px)',
+      animation: 'fadeIn .2s ease',
     }}>
-      {/* Outer pulse ring */}
+      {/* Single pulse ring */}
       <div style={{
         position: 'absolute',
         top: '50%', left: '50%',
-        width: 320, height: 320,
+        width: 260, height: 260,
         borderRadius: '50%',
-        border: `3px solid ${suitColor}`,
-        animation: 'trumpRingPulse 0.9s ease-out 0.2s forwards',
-        opacity: 0,
-      }} />
-      <div style={{
-        position: 'absolute',
-        top: '50%', left: '50%',
-        width: 240, height: 240,
-        borderRadius: '50%',
-        border: `2px solid ${suitColor}`,
-        animation: 'trumpRingPulse 0.9s ease-out 0.4s forwards',
+        border: `2.5px solid ${suitColor}`,
+        animation: 'trumpRingPulse 0.9s ease-out 0.3s forwards',
         opacity: 0,
       }} />
 
-      {/* Main card */}
+      {/* Main card — clean, minimal */}
       <div style={{
         position: 'relative',
-        background: 'var(--surface)',
-        borderRadius: 28,
-        padding: '2.5rem 3.5rem',
+        background: `linear-gradient(145deg, var(--surface) 0%, #f8faf9 100%)`,
+        borderRadius: 24,
+        padding: '2rem 3rem',
         textAlign: 'center',
-        boxShadow: `0 0 60px ${suitColor}55, 0 24px 64px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3)`,
-        border: `2px solid ${suitColor}66`,
-        animation: 'trumpRevealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+        boxShadow: `0 0 80px ${suitColor}40, 0 20px 60px rgba(0,0,0,.35)`,
+        border: `2.5px solid ${suitColor}88`,
+        animation: 'trumpRevealIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
         '--trump-color': suitColor,
         '--trump-color-dim': `${suitColor}44`,
+        maxWidth: 280,
       } as React.CSSProperties}>
-        {/* Glow background */}
+
+        {/* Colored accent bar at top */}
         <div style={{
           position: 'absolute',
-          inset: 0,
-          borderRadius: 'inherit',
-          background: `radial-gradient(ellipse at center, ${suitColor}18 0%, transparent 70%)`,
-          pointerEvents: 'none',
+          top: 0, left: '15%', right: '15%',
+          height: 3,
+          borderRadius: '0 0 3px 3px',
+          background: suitColor,
+          boxShadow: `0 2px 12px ${suitColor}88`,
         }} />
 
-        {/* Label */}
+        {/* Emoji + Name stacked */}
         <div style={{
-          fontSize: '.75rem',
-          fontWeight: 700,
-          letterSpacing: '.15em',
-          textTransform: 'uppercase',
-          color: 'var(--text-muted)',
+          fontSize: '3.2rem',
+          lineHeight: 1,
           marginBottom: '.5rem',
-        }}>
-          TRUMP IS
-        </div>
-
-        {/* Big emoji */}
-        <div style={{
-          fontSize: '4rem',
-          lineHeight: 1.1,
-          marginBottom: '.4rem',
-          filter: `drop-shadow(0 4px 12px ${suitColor}88)`,
-          animation: 'bounce .6s ease-in-out 0.4s',
+          filter: `drop-shadow(0 3px 10px ${suitColor}66)`,
+          animation: 'bounce .5s ease-in-out 0.35s',
         }}>
           {suitEmoji}
         </div>
 
-        {/* Suit name */}
         <div style={{
-          fontSize: '2.4rem',
-          fontWeight: 900,
-          color: suitColor,
-          letterSpacing: '-.02em',
-          textShadow: `0 0 24px ${suitColor}88, 0 4px 12px ${suitColor}44`,
-          marginBottom: '.2rem',
-          animation: 'trumpGlow 1.5s ease-in-out infinite',
-          '--trump-color': suitColor,
-          '--trump-color-dim': `${suitColor}44`,
-        } as React.CSSProperties}>
-          {suitName.toUpperCase()}
+          fontSize: '.65rem',
+          fontWeight: 600,
+          letterSpacing: '.18em',
+          textTransform: 'uppercase',
+          color: 'var(--text-faint)',
+          marginBottom: '.25rem',
+        }}>
+          TRUMP
         </div>
 
-        {/* Suit pip display */}
         <div style={{
-          fontSize: '1.1rem',
-          color: `${suitColor}bb`,
-          letterSpacing: '.08em',
-          fontWeight: 600,
+          fontSize: '1.8rem',
+          fontWeight: 900,
+          color: suitColor,
+          letterSpacing: '.02em',
+          lineHeight: 1.1,
+          textShadow: `0 0 20px ${suitColor}55`,
         }}>
-          {Array.from({ length: 5 }, (_, i) => (
-            <span key={i} style={{ margin: '0 2px' }}>{suitEmoji}</span>
-          ))}
+          {suitName.toUpperCase()}
         </div>
       </div>
     </div>

@@ -14,7 +14,7 @@ export default function TrickResultBadge() {
 
   if (!trickResult) return null
 
-  const { winnerName, dominos, score, exiting } = trickResult
+  const { winnerName, dominos, score } = trickResult
 
   return (
     <div
@@ -29,9 +29,7 @@ export default function TrickResultBadge() {
         borderRadius: 12,
         padding: '8px 12px',
         boxShadow: '0 6px 24px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.06)',
-        animation: exiting
-          ? 'trickBadgeOut 0.35s ease forwards'
-          : 'trickBadgeIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+        animation: 'trickBadgeIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards',
         pointerEvents: 'none',
         display: 'flex',
         alignItems: 'center',

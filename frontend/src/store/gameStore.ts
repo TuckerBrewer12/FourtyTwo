@@ -459,10 +459,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         setTimeout(() => set({ celebrateTeam: null }), 800);
       }
 
+      // Update scores and won-tricks immediately, but DELAY the sweep
+      // so the 4th tile's slide-in animation (550ms) can finish first.
       set(s => ({
         lastTrickWinner: d.winner,
         lastTrickScore: d.trick_score,
-        trickSweepSeat: winnerSeat,
         wonTricksPerPlayer: {
           ...s.wonTricksPerPlayer,
           [d.winner]: [...(s.wonTricksPerPlayer[d.winner] ?? []), d.trick_dominos],
@@ -476,12 +477,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
           trick_count: d.trick_count,
         } : s.gameState,
       }));
-      // Clear active trick display after 900ms (won tricks persist in wonTricksPerPlayer)
+      // Start sweep after 4th tile has landed (600ms delay)
+      setTimeout(() => set({ trickSweepSeat: winnerSeat }), 600);
+      // Clear active trick display after sweep finishes (600 + 900 = 1500ms)
       setTimeout(() => set(s => ({
         lastTrickWinner: null,
         trickSweepSeat: null,
         gameState: s.gameState ? { ...s.gameState, trick: [] } : s.gameState,
-      })), 900);
+      })), 1500);
     });
 
     socket.on('hand_complete', (d: HandCompletePayload) => {
