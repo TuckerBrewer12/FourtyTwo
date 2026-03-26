@@ -77,6 +77,7 @@ export interface GameState {
   total_tricks: number;
   win_target: number;
   max_bid: number;
+  bid_log?: BidLogEntry[];
 }
 
 /* ---- Server → Client event payloads ---- */
@@ -113,6 +114,13 @@ export interface GameStartedPayload {
   seat_map: Record<number, 'north' | 'south' | 'east' | 'west'>;
 }
 
+export interface BidLogEntry {
+  player: number;
+  name: string;
+  bid: number;
+  marks: number;
+}
+
 export interface BidPlacedPayload {
   player_num: number;
   bid: number;
@@ -123,6 +131,7 @@ export interface BidPlacedPayload {
   high_bidder: number | null;
   high_marks: number | null;
   available_bids: number[];
+  bid_log?: BidLogEntry[];
 }
 
 export interface BiddingCompletePayload {

@@ -15,17 +15,45 @@ export interface Toast {
   type: 'default' | 'success' | 'error' | 'info';
 }
 
+export interface FlightDomino {
+  id: number;
+  a: number;
+  b: number;
+  fromSeat: string;
+}
+
+export interface ScorePop {
+  id: number;
+  pts: number;
+  team: number;
+  label: string;
+}
+
 let toastCounter = 0;
 let biddingTimer: ReturnType<typeof setInterval> | null = null;
+let flightCounter = 0;
+let scorePopCounter = 0;
+
+// Apply persisted animation preference immediately on load
+const _initSettings = loadSettings();
+if (!_initSettings.richAnimations) {
+  document.body.classList.add('no-anim');
+}
 
 // --- Persisted settings helpers ---
 const SETTINGS_KEY = 'fortytwo_settings';
 
 interface PersistedSettings {
   showCountMarkers: boolean;
+  richAnimations: boolean;
+  trickBadgeColors: boolean;
 }
 
-const DEFAULT_SETTINGS: PersistedSettings = { showCountMarkers: true };
+const DEFAULT_SETTINGS: PersistedSettings = {
+  showCountMarkers: true,
+  richAnimations: true,
+  trickBadgeColors: true,
+};
 
 function loadSettings(): PersistedSettings {
   try {
@@ -68,6 +96,8 @@ interface GameStore {
 
   // Settings
   showCountMarkers: boolean;
+  richAnimations: boolean;
+  trickBadgeColors: boolean;
   settingsModalOpen: boolean;
 
   // Modal visibility
@@ -90,6 +120,18 @@ interface GameStore {
   // Socket
   socket: Socket | null;
 
+  // ---- ANIMATION STATE ----
+  flightDominos: FlightDomino[];
+  scorePops: ScorePop[];
+  trickSweepSeat: string | null;   // seat name to sweep trick toward
+  celebrateTeam: number | null;    // 1 or 2 = confetti for that team
+  dealAnimating: boolean;          // true during new hand deal animation
+  trumpRevealSuit: number | null;  // suit being revealed (with fanfare)
+  lastTrickScore: number;          // most recent trick score for display
+
+  // ---- TRICK RESULT BADGE ----
+  trickResult: { winnerName: string; dominos: number[][]; score: number } | null;
+
   // ---- Actions ----
   setScreen: (s: Screen) => void;
   setStatus: (msg: string) => void;
@@ -98,6 +140,8 @@ interface GameStore {
   goLobby: () => void;
   setChatOpen: (open: boolean) => void;
   setShowCountMarkers: (v: boolean) => void;
+  setRichAnimations: (v: boolean) => void;
+  setTrickBadgeColors: (v: boolean) => void;
   initSocket: () => void;
 
   // Emit helpers
@@ -129,6 +173,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   validPlays: [],
   seatMap: null,
   showCountMarkers: loadSettings().showCountMarkers,
+  richAnimations: loadSettings().richAnimations,
+  trickBadgeColors: loadSettings().trickBadgeColors,
   settingsModalOpen: false,
   bidModalOpen: false,
   trumpModalOpen: false,
@@ -140,6 +186,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
   unreadChat: 0,
   toasts: [],
   socket: null,
+
+  // Animation initial state
+  flightDominos: [],
+  scorePops: [],
+  trickSweepSeat: null,
+  celebrateTeam: null,
+  dealAnimating: false,
+  trumpRevealSuit: null,
+  lastTrickScore: 0,
+  trickResult: null,
 
   setScreen: (currentScreen) => set({ currentScreen }),
   setStatus: (statusMsg) => set({ statusMsg }),
@@ -162,6 +218,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
     saveSettings({ ...loadSettings(), showCountMarkers: v });
   },
 
+  setRichAnimations: (v) => {
+    set({ richAnimations: v });
+    saveSettings({ ...loadSettings(), richAnimations: v });
+    document.body.classList.toggle('no-anim', !v);
+  },
+
+  setTrickBadgeColors: (v) => {
+    set({ trickBadgeColors: v });
+    saveSettings({ ...loadSettings(), trickBadgeColors: v });
+  },
+
   goLobby: () => {
     set({
       myPNum: null, myRoom: null, myHand: [], gameState: null,
@@ -170,6 +237,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       handResultData: null, gameOverData: null, chatOpen: false,
       unreadChat: 0, statusMsg: 'Waiting…', pendingPlay: null, lastTrickWinner: null, wonTricksPerPlayer: {}, biddingCountdown: null,
       validPlays: [], seatMap: null,
+      flightDominos: [], scorePops: [], trickSweepSeat: null, celebrateTeam: null,
+      dealAnimating: false, trumpRevealSuit: null, lastTrickScore: 0, trickResult: null,
     });
     window.history.replaceState({}, '', '/');
   },
@@ -234,7 +303,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
         gameOverData: null,
         handResultData: null,
         statusMsg: `Hand ${d.state.hand_num} — Look at your hand — bidding starts in 3s`,
+        // Trigger deal animation
+        dealAnimating: true,
+        celebrateTeam: null,
+        trickSweepSeat: null,
+        flightDominos: [],
+        scorePops: [],
+        trumpRevealSuit: null,
+        lastTrickScore: 0,
       });
+      // End deal animation after stagger completes
+      // 7 tiles × 130ms stagger = 780ms max delay + 820ms anim = 1600ms; add buffer
+      setTimeout(() => set({ dealAnimating: false }), 1800);
+
       clearBiddingTimer();
       let n = 3;
       biddingTimer = setInterval(() => {
@@ -270,6 +351,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           high_bidder: d.high_bidder,
           high_marks: d.high_marks,
           available_bids: d.available_bids ?? s.gameState.available_bids,
+          bid_log: d.bid_log ?? s.gameState.bid_log,
         } : s.gameState,
       }));
       const { myPNum, isSpectator } = get();
@@ -295,9 +377,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     socket.on('trump_set', (d: TrumpSetPayload) => {
       clearBiddingTimer();
-      const SUIT_NAMES = ['Blanks','Aces','Deuces','Treys','Fours','Fives','Sixes'];
-      const tn = d.trump === null ? 'No Trump' : `${SUIT_NAMES[d.trump]}s (${d.trump})`;
+      const SUIT_NAMES = ['Blanks','Aces','Deuces','Threes','Fours','Fives','Sixes','Doubles'];
+      const tn = d.trump === null ? 'No Trump'
+        : d.trump === 7 ? 'Doubles (all doubles are trump)'
+        : `${SUIT_NAMES[d.trump]}s (${d.trump})`;
       get().addToast(`Trump: ${tn}`);
+      // Show trump reveal animation
+      if (d.trump !== null) {
+        set({ trumpRevealSuit: d.trump });
+        setTimeout(() => set({ trumpRevealSuit: null }), 2200);
+      }
       set({
         gameState: d.state ?? get().gameState,
         trumpModalOpen: false,
@@ -329,6 +418,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
 
     socket.on('domino_played', (d: DominoPlayedPayload) => {
+      // Trigger flying domino animation
+      const seatMap = get().seatMap;
+      if (seatMap) {
+        const seat = seatMap[d.player_num] ?? 'south';
+        const fid = ++flightCounter;
+        set(s => ({
+          flightDominos: [...s.flightDominos, {
+            id: fid,
+            a: d.domino[0],
+            b: d.domino[1],
+            fromSeat: seat,
+          }],
+        }));
+        // Remove flight domino after animation completes (500ms)
+        setTimeout(() => {
+          set(s => ({ flightDominos: s.flightDominos.filter(f => f.id !== fid) }));
+        }, 520);
+      }
+
       set(s => ({
         pendingPlay: null,
         gameState: s.gameState ? { ...s.gameState, trick: d.trick } : s.gameState,
@@ -339,8 +447,47 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const gs = get().gameState;
       const nm = gs?.players?.[d.winner] ?? `P${d.winner}`;
       get().addToast(`${nm} wins the trick! +${d.trick_score} pts`);
+
+      // Set trick result badge
+      set({
+        trickResult: {
+          winnerName: nm,
+          dominos: d.trick_dominos ?? [],
+          score: d.trick_score,
+        },
+      });
+      setTimeout(() => set({ trickResult: null }), 3200);
+
+      // Determine winner's seat for sweep animation
+      const seatMap = get().seatMap;
+      const winnerSeat = seatMap?.[d.winner] ?? 'north';
+
+      // Add score pop
+      if (d.trick_score > 0) {
+        const popId = ++scorePopCounter;
+        set(s => ({
+          scorePops: [...s.scorePops, {
+            id: popId,
+            pts: d.trick_score,
+            team: d.team,
+            label: `+${d.trick_score}`,
+          }],
+        }));
+        setTimeout(() => {
+          set(s => ({ scorePops: s.scorePops.filter(p => p.id !== popId) }));
+        }, 1600);
+      }
+
+      // Mini confetti for trick win (if it's a count trick)
+      if (d.trick_score >= 5) {
+        set({ celebrateTeam: d.team });
+        setTimeout(() => set({ celebrateTeam: null }), 800);
+      }
+
       set(s => ({
         lastTrickWinner: d.winner,
+        lastTrickScore: d.trick_score,
+        trickSweepSeat: winnerSeat,
         wonTricksPerPlayer: {
           ...s.wonTricksPerPlayer,
           [d.winner]: [...(s.wonTricksPerPlayer[d.winner] ?? []), d.trick_dominos],
@@ -354,11 +501,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
           trick_count: d.trick_count,
         } : s.gameState,
       }));
-      // Clear active trick display after 800ms (won tricks persist in wonTricksPerPlayer)
+      // Clear active trick display after 900ms (won tricks persist in wonTricksPerPlayer)
       setTimeout(() => set(s => ({
         lastTrickWinner: null,
+        trickSweepSeat: null,
         gameState: s.gameState ? { ...s.gameState, trick: [] } : s.gameState,
-      })), 800);
+      })), 900);
     });
 
     socket.on('hand_complete', (d: HandCompletePayload) => {
@@ -371,6 +519,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
           team2_marks: d.team2_marks,
         } : s.gameState,
       }));
+      // Full confetti celebration on hand complete
+      set({ celebrateTeam: d.winner_team });
+      setTimeout(() => set({ celebrateTeam: null }), 3500);
+
       if (d.game_over) {
         set({ gameOverData: d, currentScreen: 'gameover' });
       } else {

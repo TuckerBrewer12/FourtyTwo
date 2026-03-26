@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useGameStore } from '../../store/gameStore'
 
+const SUIT_NAMES = ['Blanks','Aces','Deuces','Threes','Fours','Fives','Sixes','Doubles']
+const SUIT_ICONS = ['⬜','🔵','🟢','🟡','🟣','🔴','🔷','♟']
+
 function useClock() {
   const [time, setTime] = useState(() => {
     const now = new Date()
@@ -25,7 +28,25 @@ export default function ScoreHeader() {
 
   const t1 = gs?.team1_score ?? 0
   const t2 = gs?.team2_score ?? 0
-  const scoreStr = `Score: ${t1} – ${t2}`
+
+  const trump = gs?.trump ?? null
+  const highBid = gs?.high_bid ?? null
+  const highBidder = gs?.high_bidder ?? null
+  const highMarks = gs?.high_marks ?? 1
+  const players = gs?.players ?? {}
+
+  const trumpName = trump === null ? null
+    : trump === 7 ? 'Doubles'
+    : SUIT_NAMES[trump]
+  const trumpIcon = trump === null ? null
+    : trump === 7 ? '♟'
+    : SUIT_ICONS[trump]
+
+  const bidderName = highBidder !== null ? (players[highBidder] ?? `P${highBidder}`) : null
+  const bidDisplay = highBid === null ? null
+    : highBid === 0 ? `Low (${highMarks}m)`
+    : highBid === 42 ? `42 (${highMarks}m)`
+    : String(highBid)
 
   return (
     <div style={{
@@ -42,7 +63,7 @@ export default function ScoreHeader() {
     }}>
       {/* Brand */}
       <span style={{
-        fontWeight: 800, fontSize: '1.05rem',
+        fontWeight: 800, fontSize: '.95rem',
         color: 'var(--accent)', letterSpacing: '-.01em',
       }}>
         FortyTwo
@@ -50,24 +71,66 @@ export default function ScoreHeader() {
 
       {/* Center info */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: '1.25rem',
+        display: 'flex', alignItems: 'center', gap: '.75rem',
         position: 'absolute', left: '50%', transform: 'translateX(-50%)',
+        maxWidth: '70vw', overflow: 'hidden',
       }}>
-        <span style={{ fontSize: '.82rem', fontWeight: 700, color: 'var(--accent)' }}>
-          {scoreStr}
+        {/* Score — most prominent element in header */}
+        <span style={{
+          fontSize: '.88rem', fontWeight: 800, color: 'var(--text)',
+          whiteSpace: 'nowrap', letterSpacing: '.02em',
+          background: 'var(--surface-soft)', padding: '.15rem .55rem',
+          borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+        }}>
+          <span style={{ color: 'var(--t1)' }}>{t1}</span>
+          <span style={{ color: 'var(--text-faint)', margin: '0 .2rem' }}>–</span>
+          <span style={{ color: 'var(--t2)' }}>{t2}</span>
         </span>
+
         {gs && (
           <>
-            <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--border)', flexShrink: 0 }} />
-            <span style={{ fontSize: '.82rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+            <Dot />
+            <span style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
               Hand {gs.hand_num}
             </span>
-            <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--border)', flexShrink: 0 }} />
           </>
         )}
+
+        {/* Trump badge — shown during play phase */}
+        {trumpName !== null && gs?.phase === 'playing' && (
+          <>
+            <Dot />
+            <span style={{
+              display: 'flex', alignItems: 'center', gap: '.25rem',
+              background: trump === 7 ? 'rgba(217,119,6,.12)' : `color-mix(in srgb, var(--suit-${trump}) 12%, transparent)`,
+              border: `1.5px solid ${trump === 7 ? '#d97706' : `var(--suit-${trump})`}`,
+              borderRadius: 'var(--radius-pill)',
+              padding: '.18rem .55rem',
+              fontSize: '.72rem', fontWeight: 700,
+              color: trump === 7 ? '#d97706' : `var(--suit-${trump})`,
+              whiteSpace: 'nowrap',
+            }}>
+              {trumpIcon} {trumpName}
+            </span>
+          </>
+        )}
+
+        {/* Bid info — shown during bidding or trump selection */}
+        {bidDisplay && gs?.phase !== 'playing' && bidderName && (
+          <>
+            <Dot />
+            <span style={{
+              fontSize: '.72rem', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap',
+            }}>
+              Bid: <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{bidDisplay}</span> by {bidderName}
+            </span>
+          </>
+        )}
+
+        <Dot />
         <span style={{
-          fontSize: '.82rem', fontWeight: 600, color: 'var(--text-muted)',
-          fontVariantNumeric: 'tabular-nums',
+          fontSize: '.68rem', fontWeight: 500, color: 'var(--text-faint)',
+          fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
         }}>
           {clock}
         </span>
@@ -100,5 +163,11 @@ export default function ScoreHeader() {
         </div>
       </div>
     </div>
+  )
+}
+
+function Dot() {
+  return (
+    <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--border)', flexShrink: 0, display: 'inline-block' }} />
   )
 }

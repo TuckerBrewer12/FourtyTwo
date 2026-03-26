@@ -25,14 +25,461 @@ img { display: block; max-width: 100%; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-solid); border-radius: 2px; }
 
-/* Shared animation keyframes */
+/* =============================================
+   CORE ANIMATION KEYFRAMES
+   ============================================= */
+
+/* Basic transitions */
 @keyframes fadeIn   { from { opacity: 0 } to { opacity: 1 } }
 @keyframes slideUp  { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
 @keyframes slideLeft{ from { opacity: 0; transform: translateX(16px) } to { opacity: 1; transform: translateX(0) } }
 @keyframes pulse    { 0%,100% { opacity:1; transform:scale(1) } 50% { opacity:.45; transform:scale(.65) } }
-@keyframes domDrop  { from { transform: scale(.82); opacity: .3 } to { transform: scale(1); opacity: 1 } }
 @keyframes bounce   { 0%,100% { transform: scale(1) } 50% { transform: scale(1.12) } }
+
+/* Turn pulse glow */
 @keyframes turnPulse {
   0%, 100% { box-shadow: 0 0 8px rgba(16,185,129,.25), 0 2px 8px rgba(0,0,0,.06); }
   50%      { box-shadow: 0 0 20px rgba(16,185,129,.45), 0 2px 12px rgba(0,0,0,.1); }
+}
+
+/* =============================================
+   DOMINO DEAL ANIMATION (smooth slide up from below)
+   ============================================= */
+@keyframes dealIn {
+  0% {
+    transform: translateY(48px) scale(0.82);
+    opacity: 0;
+  }
+  55% {
+    transform: translateY(-6px) scale(1.03);
+    opacity: 1;
+  }
+  75% {
+    transform: translateY(2px) scale(0.995);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* =============================================
+   FLYING DOMINO ANIMATIONS (player → center)
+   The element is fixed at 50%/50% (center of screen).
+   Keyframe starts it offset at the player's approximate position,
+   then moves it to center where it "lands" and fades.
+   ============================================= */
+
+@keyframes flyFromNorth {
+  0% {
+    transform: translate(-50%, calc(-50% - 35vh)) scale(0.5) rotate(-10deg);
+    opacity: 0.9;
+  }
+  20% { opacity: 1; }
+  65% {
+    transform: translate(-50%, -50%) scale(1.1) rotate(-1deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.88) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+@keyframes flyFromSouth {
+  0% {
+    transform: translate(-50%, calc(-50% + 34vh)) scale(0.5) rotate(10deg);
+    opacity: 0.9;
+  }
+  20% { opacity: 1; }
+  65% {
+    transform: translate(-50%, -50%) scale(1.1) rotate(1deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.88) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+@keyframes flyFromEast {
+  0% {
+    transform: translate(calc(-50% + 38vw), -50%) scale(0.5) rotate(10deg);
+    opacity: 0.9;
+  }
+  20% { opacity: 1; }
+  65% {
+    transform: translate(-50%, -50%) scale(1.1) rotate(1deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.88) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+@keyframes flyFromWest {
+  0% {
+    transform: translate(calc(-50% - 38vw), -50%) scale(0.5) rotate(-10deg);
+    opacity: 0.9;
+  }
+  20% { opacity: 1; }
+  65% {
+    transform: translate(-50%, -50%) scale(1.1) rotate(-1deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.88) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+/* =============================================
+   TRICK SWEEP ANIMATIONS (center → winner corner)
+   ============================================= */
+@keyframes sweepToNorth {
+  0%   { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  25%  { transform: translateX(-50%) translateY(-18px) scale(1.07); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(-55vh) scale(0.15) rotate(-5deg); opacity: 0; }
+}
+@keyframes sweepToSouth {
+  0%   { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  25%  { transform: translateX(-50%) translateY(18px) scale(1.07); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(55vh) scale(0.15) rotate(5deg); opacity: 0; }
+}
+@keyframes sweepToEast {
+  0%   { transform: translateY(-50%) translateX(0) scale(1); opacity: 1; }
+  25%  { transform: translateY(-50%) translateX(18px) scale(1.07); opacity: 1; }
+  100% { transform: translateY(-50%) translateX(55vw) scale(0.15) rotate(5deg); opacity: 0; }
+}
+@keyframes sweepToWest {
+  0%   { transform: translateY(-50%) translateX(0) scale(1); opacity: 1; }
+  25%  { transform: translateY(-50%) translateX(-18px) scale(1.07); opacity: 1; }
+  100% { transform: translateY(-50%) translateX(-55vw) scale(0.15) rotate(-5deg); opacity: 0; }
+}
+
+/* domino entering trick center (fallback) */
+@keyframes domDrop {
+  0%   { transform: scale(0.7) translateY(-18px); opacity: 0; }
+  60%  { transform: scale(1.05) translateY(3px); opacity: 1; }
+  80%  { transform: scale(0.99) translateY(-1px); }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* =============================================
+   TRICK DOMINO DIRECTIONAL SLIDES
+   ALL wrappers are anchored at top:50%/left:50%.
+   Keyframes contain the FULL transform: centering
+   (-50%,-50%) PLUS the final seat offset (55 px).
+   This means there is never a mismatch between the
+   CSS property and the animation state — no snapping.
+   ============================================= */
+@keyframes trickSlideNorth {
+  0%   { transform: translate(-50%, calc(-50% - 170px)) scale(0.72); opacity: 0; }
+  55%  { transform: translate(-50%, calc(-50% - 50px))  scale(1.05); opacity: 1; }
+  78%  { transform: translate(-50%, calc(-50% - 58px))  scale(0.99); opacity: 1; }
+  100% { transform: translate(-50%, calc(-50% - 55px));               opacity: 1; }
+}
+@keyframes trickSlideSouth {
+  0%   { transform: translate(-50%, calc(-50% + 170px)) scale(0.72); opacity: 0; }
+  55%  { transform: translate(-50%, calc(-50% + 50px))  scale(1.05); opacity: 1; }
+  78%  { transform: translate(-50%, calc(-50% + 58px))  scale(0.99); opacity: 1; }
+  100% { transform: translate(-50%, calc(-50% + 55px));               opacity: 1; }
+}
+@keyframes trickSlideEast {
+  0%   { transform: translate(calc(-50% + 170px), -50%) scale(0.72); opacity: 0; }
+  55%  { transform: translate(calc(-50% + 50px),  -50%) scale(1.05); opacity: 1; }
+  78%  { transform: translate(calc(-50% + 58px),  -50%) scale(0.99); opacity: 1; }
+  100% { transform: translate(calc(-50% + 55px),  -50%);              opacity: 1; }
+}
+@keyframes trickSlideWest {
+  0%   { transform: translate(calc(-50% - 170px), -50%) scale(0.72); opacity: 0; }
+  55%  { transform: translate(calc(-50% - 50px),  -50%) scale(1.05); opacity: 1; }
+  78%  { transform: translate(calc(-50% - 58px),  -50%) scale(0.99); opacity: 1; }
+  100% { transform: translate(calc(-50% - 55px),  -50%);              opacity: 1; }
+}
+
+/* =============================================
+   SCORE POP ANIMATION
+   ============================================= */
+@keyframes scorePop {
+  0%   { transform: translate(-50%, 0) scale(0.4); opacity: 0; }
+  15%  { transform: translate(-50%, -8px) scale(1.2); opacity: 1; }
+  40%  { transform: translate(-50%, -20px) scale(1.05); opacity: 1; }
+  75%  { transform: translate(-50%, -52px) scale(1); opacity: 0.9; }
+  100% { transform: translate(-50%, -80px) scale(0.85); opacity: 0; }
+}
+
+/* =============================================
+   CONFETTI PARTICLES
+   ============================================= */
+@keyframes confettiFall1 {
+  0%   { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+  100% { transform: translate(-120px, 250px) rotate(540deg) scale(0.3); opacity: 0; }
+}
+@keyframes confettiFall2 {
+  0%   { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+  100% { transform: translate(80px, 300px) rotate(-720deg) scale(0.2); opacity: 0; }
+}
+@keyframes confettiFall3 {
+  0%   { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+  100% { transform: translate(-60px, 220px) rotate(360deg) scale(0.4); opacity: 0; }
+}
+@keyframes confettiFall4 {
+  0%   { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+  100% { transform: translate(150px, 280px) rotate(-540deg) scale(0.25); opacity: 0; }
+}
+@keyframes confettiFall5 {
+  0%   { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+  100% { transform: translate(-200px, 350px) rotate(720deg) scale(0.15); opacity: 0; }
+}
+@keyframes confettiFall6 {
+  0%   { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+  100% { transform: translate(100px, 260px) rotate(-360deg) scale(0.35); opacity: 0; }
+}
+@keyframes confettiBurst {
+  0%   { transform: translate(0,0) scale(0); opacity: 0; }
+  10%  { transform: translate(0,-20px) scale(1.2); opacity: 1; }
+  100% { transform: translate(var(--tx), var(--ty)) scale(0.1) rotate(var(--rot)); opacity: 0; }
+}
+
+/* =============================================
+   TRUMP REVEAL
+   ============================================= */
+@keyframes trumpRevealIn {
+  0%   { transform: translate(-50%, -50%) scale(0.3) rotate(-15deg); opacity: 0; filter: blur(10px); }
+  40%  { transform: translate(-50%, -50%) scale(1.15) rotate(3deg); opacity: 1; filter: blur(0); }
+  65%  { transform: translate(-50%, -50%) scale(0.95) rotate(-1deg); opacity: 1; }
+  80%  { transform: translate(-50%, -50%) scale(1.02) rotate(0deg); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes trumpRevealOut {
+  0%   { transform: translate(-50%, -50%) scale(1); opacity: 1; filter: blur(0); }
+  100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; filter: blur(8px); }
+}
+
+@keyframes trumpGlow {
+  0%, 100% { box-shadow: 0 0 40px var(--trump-color), 0 0 80px var(--trump-color-dim); }
+  50%       { box-shadow: 0 0 80px var(--trump-color), 0 0 160px var(--trump-color-dim); }
+}
+
+@keyframes trumpRingPulse {
+  0%   { transform: translate(-50%, -50%) scale(0.8); opacity: 0.8; }
+  100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+}
+
+/* =============================================
+   PLAYER ACTIVE GLOW
+   ============================================= */
+@keyframes activePlayerGlow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px rgba(34,197,94,.5),
+      0 0 16px rgba(34,197,94,.3),
+      var(--shadow-neu-sm);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(34,197,94,.8),
+      0 0 32px rgba(34,197,94,.5),
+      0 0 60px rgba(34,197,94,.2),
+      var(--shadow-neu-sm);
+  }
+}
+
+@keyframes activePlayerRing {
+  0%   { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+@keyframes activeDot {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 2px rgba(34,197,94,.3); }
+  50%       { transform: scale(1.4); box-shadow: 0 0 0 4px rgba(34,197,94,.5), 0 0 12px rgba(34,197,94,.6); }
+}
+
+/* =============================================
+   DOMINO SHIMMER (playable tiles)
+   ============================================= */
+@keyframes shimmerSweep {
+  0%   { transform: translateX(-150%) skewX(-20deg); }
+  100% { transform: translateX(250%) skewX(-20deg); }
+}
+
+/* =============================================
+   HAND AREA SHAKE (invalid play)
+   ============================================= */
+@keyframes shakeX {
+  0%, 100% { transform: translateX(0); }
+  15%       { transform: translateX(-8px) rotate(-2deg); }
+  30%       { transform: translateX(7px) rotate(2deg); }
+  45%       { transform: translateX(-6px) rotate(-1deg); }
+  60%       { transform: translateX(5px) rotate(1deg); }
+  75%       { transform: translateX(-3px); }
+  90%       { transform: translateX(2px); }
+}
+
+/* =============================================
+   TABLE AMBIENT BREATHE
+   ============================================= */
+@keyframes tableBreath {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+
+/* =============================================
+   TRICK WIN BURST (center of trick)
+   ============================================= */
+@keyframes trickWinBurst {
+  0%   { transform: scale(0); opacity: 0.9; }
+  40%  { transform: scale(1.8); opacity: 0.6; }
+  100% { transform: scale(3.5); opacity: 0; }
+}
+
+/* =============================================
+   BID ANNOUNCE
+   ============================================= */
+@keyframes bidAnnounce {
+  0%   { transform: translate(-50%, -50%) scale(0.5) translateY(30px); opacity: 0; }
+  25%  { transform: translate(-50%, -50%) scale(1.1) translateY(0); opacity: 1; }
+  70%  { transform: translate(-50%, -50%) scale(1) translateY(0); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(0.9) translateY(-20px); opacity: 0; }
+}
+
+/* =============================================
+   TILE SILHOUETTE ANIMATIONS
+   ============================================= */
+@keyframes tileAppear {
+  0%   { transform: scale(0) rotate(-10deg); opacity: 0; }
+  70%  { transform: scale(1.1) rotate(2deg); opacity: 0.9; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+/* =============================================
+   SCORE BAR FILL
+   ============================================= */
+@keyframes scoreBarFill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* =============================================
+   TRICK TILE ENTER — directional slides from player
+   ============================================= */
+@keyframes trickTileIn {
+  0%   { transform: translateY(-36px) scale(0.78); opacity: 0; }
+  58%  { transform: translateY(5px)   scale(1.05); opacity: 1; }
+  80%  { transform: translateY(-2px)  scale(0.99); opacity: 1; }
+  100% { transform: translateY(0)     scale(1);    opacity: 1; }
+}
+@keyframes trickTileFromNorth {
+  0%   { transform: translateY(-90px) scale(0.55); opacity: 0; }
+  50%  { transform: translateY(6px)   scale(1.06); opacity: 1; }
+  75%  { transform: translateY(-2px)  scale(0.99); opacity: 1; }
+  100% { transform: translateY(0)     scale(1);    opacity: 1; }
+}
+@keyframes trickTileFromSouth {
+  0%   { transform: translateY(90px) scale(0.55); opacity: 0; }
+  50%  { transform: translateY(-6px) scale(1.06); opacity: 1; }
+  75%  { transform: translateY(2px)  scale(0.99); opacity: 1; }
+  100% { transform: translateY(0)    scale(1);    opacity: 1; }
+}
+@keyframes trickTileFromEast {
+  0%   { transform: translateX(90px) scale(0.55); opacity: 0; }
+  50%  { transform: translateX(-6px) scale(1.06); opacity: 1; }
+  75%  { transform: translateX(2px)  scale(0.99); opacity: 1; }
+  100% { transform: translateX(0)    scale(1);    opacity: 1; }
+}
+@keyframes trickTileFromWest {
+  0%   { transform: translateX(-90px) scale(0.55); opacity: 0; }
+  50%  { transform: translateX(6px)   scale(1.06); opacity: 1; }
+  75%  { transform: translateX(-2px)  scale(0.99); opacity: 1; }
+  100% { transform: translateX(0)     scale(1);    opacity: 1; }
+}
+
+/* =============================================
+   TRICK DOMINO FADE-OUT (during sweep)
+   ============================================= */
+@keyframes trickFadeAway {
+  0%   { opacity: 1; transform: scale(1);    }
+  20%  { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 0; transform: scale(0.85); }
+}
+
+/* =============================================
+   TRICK RESULT BADGE (winner notification)
+   ============================================= */
+@keyframes trickBadgeIn {
+  0%   { transform: translateX(120px); opacity: 0; }
+  55%  { transform: translateX(-6px);  opacity: 1; }
+  80%  { transform: translateX(3px);   opacity: 1; }
+  100% { transform: translateX(0);     opacity: 1; }
+}
+@keyframes trickBadgeOut {
+  0%   { transform: translateX(0);  opacity: 1; }
+  100% { transform: translateX(120px); opacity: 0; }
+}
+
+/* no-animations override: kills all durations globally */
+body.no-anim *, body.no-anim *::before, body.no-anim *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay:    0ms    !important;
+  transition-duration: 0.001ms !important;
+}
+
+/* =============================================
+   TRICK INDICATOR RING (existing trick in center)
+   ============================================= */
+@keyframes trickRingPulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50%       { opacity: 0.7; transform: scale(1.02); }
+}
+
+/* =============================================
+   GAME-START COUNTDOWN
+   ============================================= */
+@keyframes countdownPop {
+  0%   { transform: scale(0.5); opacity: 0; }
+  40%  { transform: scale(1.2); opacity: 1; }
+  70%  { transform: scale(0.95); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* =============================================
+   GENERAL RIPPLE
+   ============================================= */
+@keyframes ripple {
+  0%   { transform: translate(-50%,-50%) scale(0); opacity: 0.7; }
+  100% { transform: translate(-50%,-50%) scale(4); opacity: 0; }
+}
+
+/* =============================================
+   FLOAT (ambient background particles)
+   ============================================= */
+@keyframes floatUp {
+  0%   { transform: translateY(0) scale(1); opacity: 0.15; }
+  50%  { opacity: 0.08; }
+  100% { transform: translateY(-120px) scale(0.6); opacity: 0; }
+}
+
+/* =============================================
+   HAND RESULT MODAL
+   ============================================= */
+@keyframes resultSlideIn {
+  from { transform: translateY(40px) scale(0.9); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@keyframes madeGlow {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(34,197,94,.4), 0 8px 32px rgba(0,0,0,.12); }
+  50%       { box-shadow: 0 0 0 4px rgba(34,197,94,.7), 0 8px 48px rgba(34,197,94,.25); }
+}
+
+@keyframes setShake {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  20%       { transform: translateX(-6px) rotate(-1deg); }
+  40%       { transform: translateX(5px) rotate(1deg); }
+  60%       { transform: translateX(-4px) rotate(-0.5deg); }
+  80%       { transform: translateX(3px); }
 }

@@ -16,7 +16,7 @@ function isCount(a: number, b: number) {
   return s > 0 && s % 5 === 0;
 }
 
-function PipGrid({ n, suit }: { n: number; suit: number }) {
+function PipGrid({ n, suit, colorless }: { n: number; suit: number; colorless?: boolean }) {
   const pos = PIP_POS[n] ?? [];
   return (
     <div className={styles.pipGrid}>
@@ -25,7 +25,7 @@ function PipGrid({ n, suit }: { n: number; suit: number }) {
           {pos.includes(i) && (
             <div
               className={styles.pip}
-              style={{ background: `var(--suit-${suit})` }}
+              style={{ background: colorless ? 'rgba(0,0,0,0.55)' : `var(--suit-${suit})` }}
             />
           )}
         </div>
@@ -45,34 +45,59 @@ interface DominoProps {
   invalid?: boolean;
   inTrick?: boolean;
   vertical?: boolean;
+  isTrump?: boolean;
   className?: string;
+  // Animation extras
+  dealing?: boolean;
+  dealDelay?: number;  // ms delay for staggered deal
+  sweepDir?: 'north' | 'south' | 'east' | 'west' | null;
+  flying?: boolean;
+  colorless?: boolean;  // render pips in neutral dark color (no suit color)
+  style?: React.CSSProperties;
 }
 
 export default function Domino({
-  a, b, size = 'md', onClick, playable, invalid, inTrick, vertical, className,
+  a, b, size = 'md', onClick, playable, invalid, inTrick, vertical, isTrump, className,
+  dealing, dealDelay, sweepDir, flying, colorless, style,
 }: DominoProps) {
   const showCountMarkers = useGameStore(s => s.showCountMarkers);
   const count = showCountMarkers && isCount(a, b);
 
+  const sweepClass = sweepDir
+    ? `${styles.sweeping} ${styles['sweep' + sweepDir.charAt(0).toUpperCase() + sweepDir.slice(1)]}`
+    : '';
+
   const cls = [
     styles.domino,
     styles[size],
+    isTrump  ? styles.trump    : '',
     count    ? styles.count    : '',
     playable ? styles.playable : '',
     invalid  ? styles.invalid  : '',
     inTrick  ? styles.inTrick  : '',
     vertical ? styles.vertical : '',
+    dealing  ? styles.dealing  : '',
+    flying   ? styles.flying   : '',
+    sweepClass,
     className ?? '',
   ].filter(Boolean).join(' ');
 
+  const dealStyle: React.CSSProperties = dealing && dealDelay !== undefined
+    ? { animationDelay: `${dealDelay}ms` }
+    : {};
+
   return (
-    <div className={cls} onClick={playable && onClick ? onClick : undefined}>
+    <div
+      className={cls}
+      style={{ ...dealStyle, ...style }}
+      onClick={playable && onClick ? onClick : undefined}
+    >
       <div className={styles.half}>
-        <PipGrid n={a} suit={a} />
+        <PipGrid n={a} suit={a} colorless={colorless} />
       </div>
       <div className={styles.divider} />
       <div className={styles.half}>
-        <PipGrid n={b} suit={b} />
+        <PipGrid n={b} suit={b} colorless={colorless} />
       </div>
     </div>
   );

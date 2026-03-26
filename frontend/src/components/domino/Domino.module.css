@@ -9,19 +9,26 @@
   flex-shrink: 0;
   background: var(--domino-bg);
   box-shadow: var(--dom-shadow);
-  transition: transform var(--trans), box-shadow var(--trans), opacity var(--trans), filter var(--trans);
+  /* Smooth transitions for hover / trump state changes */
+  transition:
+    transform   0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow  0.18s ease,
+    opacity     0.2s ease,
+    filter      0.2s ease;
+  will-change: transform;
 }
 
 .half {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 3px;
+  padding: 4px;
+  background: inherit;
 }
 
 .divider {
-  width: 1.5px;
-  background: rgba(0,0,0,.09);
+  width: 2px;
+  background: rgba(0,0,0,.11);
   align-self: stretch;
   flex-shrink: 0;
 }
@@ -30,7 +37,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   grid-template-rows: 1fr 1fr 1fr;
-  gap: 1px;
+  gap: 1.5px;
   width: 100%;
   height: 100%;
 }
@@ -43,66 +50,167 @@
 
 .pip {
   border-radius: 50%;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,.35);
+  box-shadow: inset 0 1.5px 3px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.15);
+  transition: transform 0.2s ease;
 }
 
 /* ---- Sizes ---- */
-.xs .half     { width: 18px; height: 18px; padding: 2px; }
-.xs .pip      { width: 4px; height: 4px; }
-.xs           { border-radius: 5px; }
+/* xs/sm/md/xl = slightly rectangular; lg (trick center) = real domino shape */
+.xs .half     { width: 16px; height: 20px; padding: 2px; }
+.xs .pip      { width: 4px;  height: 4px; }
+.xs           { border-radius: 4px; }
 .xs .divider  { width: 1px; }
+.xs .pipGrid  { gap: 1px; }
 
-.sm .half     { width: 24px; height: 24px; padding: 2px; }
-.sm .pip      { width: 5px; height: 5px; }
-.sm           { border-radius: 8px; }
-.sm .divider  { width: 1px; }
+.sm .half     { width: 22px; height: 28px; padding: 2px; }
+.sm .pip      { width: 5px;  height: 5px; }
+.sm           { border-radius: 6px; }
+.sm .divider  { width: 1.5px; }
 
-.md .half     { width: 34px; height: 34px; padding: 3px; }
-.md .pip      { width: 7px; height: 7px; }
+.md .half     { width: 30px; height: 38px; padding: 3px; }
+.md .pip      { width: 7px;  height: 7px; }
+.md           { border-radius: 8px; }
 
-.lg .half     { width: 44px; height: 44px; padding: 4px; }
-.lg .pip      { width: 9px; height: 9px; }
+.lg .half     { width: 40px; height: 50px; padding: 4px; }
+.lg .pip      { width: 9px;  height: 9px; }
+.lg           { border-radius: 10px; }
 
-.xl .half     { width: 56px; height: 56px; padding: 5px; }
+.xl .half     { width: 50px; height: 64px; padding: 5px; }
 .xl .pip      { width: 11px; height: 11px; }
-.xl           { border-radius: 16px; }
+.xl           { border-radius: 12px; }
+.xl .divider  { width: 2.5px; }
 
-/* ---- States ---- */
+/* ---- Trump state — green glow ring + tinted bg ---- */
+.trump {
+  box-shadow:
+    0 0 0 2.5px #006d5b,
+    0 0 12px rgba(0,109,91,.35),
+    var(--dom-shadow);
+  background: linear-gradient(135deg, #ffffff 60%, rgba(0,109,91,.07));
+}
+
+.trump::after {
+  content: '♣';
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  font-size: 8px;
+  color: rgba(0,109,91,.8);
+  pointer-events: none;
+  line-height: 1;
+  font-weight: 700;
+}
+
+/* ---- Count tile — amber ring ---- */
 .count {
   box-shadow: 0 0 0 2.5px #d97706, var(--dom-shadow);
 }
 
+.count::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 2px solid #d97706;
+  animation: trickRingPulse 1.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.trump.count {
+  box-shadow:
+    0 0 0 2.5px #006d5b,
+    0 0 0 4.5px #d97706,
+    0 0 14px rgba(0,109,91,.3),
+    var(--dom-shadow);
+}
+
+/* ---- Playable domino — elevated + shimmer ---- */
 .playable {
   cursor: pointer;
   box-shadow: var(--dom-shadow-hover);
+  transform: translateY(-2px);
 }
+
+.playable::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255,255,255,0.6) 50%,
+    transparent 70%
+  );
+  animation: shimmerSweep 2.6s ease-in-out infinite;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
 .playable:hover {
-  transform: translateY(-12px) scale(1.04);
+  transform: translateY(-12px) scale(1.06);
   box-shadow: var(--dom-shadow-lift);
   z-index: 5;
+  transition:
+    transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.15s ease;
 }
 
+.playable:hover .pip {
+  transform: scale(1.12);
+}
+
+.playable:active {
+  transform: translateY(-5px) scale(0.94);
+  transition: transform 0.1s ease;
+}
+
+/* ---- Invalid / unplayable ---- */
 .invalid {
-  opacity: .28;
-  filter: grayscale(.6) brightness(.98);
+  opacity: .22;
+  filter: grayscale(.75) brightness(.9);
   cursor: not-allowed;
+  transform: none !important;
 }
 
+/* ---- In-trick (fallback, not used in cross layout) ---- */
 .inTrick {
-  animation: domDrop .25s ease;
+  animation: domDrop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
+/* ---- Deal animation ---- */
+.dealing {
+  animation: dealIn 0.82s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* ---- Flying domino (in FlightLayer) ---- */
+.flying {
+  pointer-events: none;
+  box-shadow: 0 24px 60px rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.2);
+}
+
+/* ---- Trick sweep ---- */
+.sweeping {
+  animation-duration: 0.78s;
+  animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  animation-fill-mode: forwards;
+  pointer-events: none;
+}
+.sweepNorth { animation-name: sweepToNorth; }
+.sweepSouth { animation-name: sweepToSouth; }
+.sweepEast  { animation-name: sweepToEast; }
+.sweepWest  { animation-name: sweepToWest; }
+
+/* ---- Vertical orientation ---- */
 .vertical {
   flex-direction: column;
 }
-
 .vertical .divider {
   width: 100%;
-  height: 1.5px;
+  height: 2px;
 }
 
 /* Responsive */
 @media (max-width: 600px) {
-  .xl .half   { width: 44px; height: 44px; }
-  .xl .pip    { width: 9px; height: 9px; }
+  .xl .half   { width: 42px; height: 54px; }
+  .xl .pip    { width: 9px;  height: 9px; }
 }

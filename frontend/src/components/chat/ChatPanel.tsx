@@ -61,17 +61,23 @@ export default function ChatPanel() {
         flex: 1, overflowY: 'auto', padding: '.5rem .75rem',
         display: 'flex', flexDirection: 'column', gap: '.35rem',
       }}>
-        {history.map((m, i) => (
-          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '.05rem', animation: 'fadeIn .15s ease' }}>
-            <span style={{
-              fontSize: '.68rem', fontWeight: 600,
-              color: m.spectator ? 'var(--warning)' : 'var(--text-muted)',
-            }}>
-              {m.sender}{m.spectator ? ' 👀' : ''}
-            </span>
-            <span style={{ fontSize: '1.3rem', lineHeight: 1.2 }}>{m.msg}</span>
-          </div>
-        ))}
+        {history.map((m, i) => {
+          // Detect if message is purely emoji/short reaction vs full text
+          const isShortEmoji = m.msg.length <= 4 && /^\p{Emoji}/u.test(m.msg)
+          return (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '.05rem', animation: 'fadeIn .15s ease' }}>
+              <span style={{
+                fontSize: '.68rem', fontWeight: 600,
+                color: m.spectator ? 'var(--warning)' : 'var(--text-muted)',
+              }}>
+                {m.sender}{m.spectator ? ' 👀' : ''}
+              </span>
+              <span style={{ fontSize: isShortEmoji ? '1.4rem' : '.85rem', lineHeight: isShortEmoji ? 1.2 : 1.4, color: 'var(--text)', wordBreak: 'break-word' }}>
+                {m.msg}
+              </span>
+            </div>
+          )
+        })}
       </div>
 
       {/* Quick reactions */}
@@ -107,12 +113,12 @@ export default function ChatPanel() {
             value={msg}
             onChange={e => setMsg(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && send()}
-            placeholder="Emoji or type above 😊"
-            maxLength={40}
+            placeholder="Say something… 😊"
+            maxLength={200}
             style={{
               flex: 1, background: 'var(--bg)', border: '1px solid var(--border)',
               borderRadius: 'var(--radius-sm)', padding: '.45rem .6rem',
-              fontSize: '1.2rem', color: 'var(--text)', outline: 'none', fontFamily: 'inherit',
+              fontSize: '.88rem', color: 'var(--text)', outline: 'none', fontFamily: 'inherit',
             }}
           />
           <button onClick={send} style={{

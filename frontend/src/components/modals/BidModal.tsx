@@ -25,7 +25,9 @@ export default function BidModal() {
     : hb === 42 ? `42 (${hm} mark${hm > 1 ? 's' : ''})`
     : String(hb)
 
-  const bidValues = gameState?.available_bids ?? []
+  // Filter out 0 (Low) and 42 — they have dedicated special tiles below the grid
+  const bidValues = (gameState?.available_bids ?? []).filter(v => v !== 0 && v !== 42)
+  const bidLog = gameState?.bid_log ?? []
 
   function submit() {
     if (selBid === null) { addToast('Select a bid first', 'error'); return }
@@ -38,12 +40,40 @@ export default function BidModal() {
     setSelBid(null)
   }
 
+  function bidLabel(bid: number, marks: number) {
+    if (bid === -1) return 'Pass'
+    if (bid === 0) return `Low (${marks}m)`
+    if (bid === 42) return `42 (${marks}m)`
+    return String(bid)
+  }
+
   return (
     <Modal>
       <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text)', marginBottom: '.15rem' }}>Your Bid</h3>
-      <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', marginBottom: '.75rem' }}>
+      <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', marginBottom: '.6rem' }}>
         Current high bid: <strong style={{ color: 'var(--text)' }}>{highStr}</strong>
       </p>
+
+      {/* Bid history so far */}
+      {bidLog.length > 0 && (
+        <div style={{
+          display: 'flex', gap: '.3rem', flexWrap: 'wrap', marginBottom: '.6rem',
+          padding: '.5rem .6rem', background: 'var(--surface-soft)',
+          borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+        }}>
+          {bidLog.map((entry, i) => (
+            <span key={i} style={{
+              fontSize: '.72rem', fontWeight: 600, padding: '.15rem .45rem',
+              borderRadius: 'var(--radius-pill)',
+              background: entry.bid === -1 ? 'var(--surface)' : 'var(--accent-light)',
+              border: `1px solid ${entry.bid === -1 ? 'var(--border)' : 'rgba(0,109,91,.2)'}`,
+              color: entry.bid === -1 ? 'var(--text-faint)' : 'var(--accent)',
+            }}>
+              {entry.name}: {bidLabel(entry.bid, entry.marks)}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Bid grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '.35rem', margin: '.5rem 0' }}>
@@ -56,7 +86,6 @@ export default function BidModal() {
 
       {/* Marks stepper (only for Low/42) */}
       {(selBid === 0 || selBid === 42) && (() => {
-        // Must beat current high: if high is already Low/42, need hm+1; otherwise hm (min 1)
         const minMarks = (hb === 0 || hb === 42) ? hm + 1 : 1
         const maxMarks = Math.min(5, hm + 1)
         return (
@@ -75,9 +104,11 @@ export default function BidModal() {
         <button onClick={pass} style={outlineBtn}>Pass</button>
       </div>
 
+      {/* Hand strength removed — user found it cluttered */}
+
       {/* Hand peek */}
       {myHand.length > 0 && (
-        <div style={{ marginTop: '.75rem', paddingTop: '.6rem', borderTop: '1px solid var(--border)' }}>
+        <div style={{ marginTop: '.65rem', paddingTop: '.5rem', borderTop: '1px solid var(--border)' }}>
           <div style={{ fontSize: '.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.4rem' }}>
             Your Hand
           </div>

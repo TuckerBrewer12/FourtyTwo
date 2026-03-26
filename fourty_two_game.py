@@ -1,41 +1,43 @@
 from domino import Domino
-from domino import Domino
 from domino_set import DominoesSet
 from player import Player, InvalidMoveError
 import random
 
+
 class InvalidBidError(Exception):
     pass
 
+
 class FourtyTwo:
+    """Core game engine for one hand of 42 (Texas Dominoes).
+
+    Supports trump values 0-6 (pip suit) and 7 (Doubles-as-trump).
+    """
+
     def __init__(self):
         self._trump = None
-        self._trick = []
+        self._trick: list[Domino] = []
         self._first_move = 1
         self._winner = 1
 
         self._join_calls = 0
 
         self.domino_set = DominoesSet()
-        self.player_hands = [[], [], [], []] 
+        self.player_hands: list[list[Domino]] = [[], [], [], []]
 
-        self._bids = {}
+        self._bids: dict[int, tuple[int, int]] = {}   # player -> (bid, marks)
         self._high_bid = -1
         self._high_bidder = None
         self._high_marks = 1
 
-        self._player1 = Player(1)
-        self._player2 = Player(2)
-        self._player3 = Player(3)
-        self._player4 = Player(4)
-
-        self._players = [self._player1, self._player2, self._player3, self._player4]
+        self._players = [Player(1), Player(2), Player(3), Player(4)]
 
         self._team1_score = 0
         self._team2_score = 0
 
-        self._bid = -1
-
+    # ------------------------------------------------------------------
+    # Setup
+    # ------------------------------------------------------------------
 
     def shuffle(self) -> None:
         self.domino_set.shuffle()
@@ -43,10 +45,114 @@ class FourtyTwo:
 
     def _deal_dominoes(self) -> None:
         self.player_hands = self.domino_set.get_hands()
-        self._player1.set_hand(self.player_hands[0])
-        self._player2.set_hand(self.player_hands[1])
-        self._player3.set_hand(self.player_hands[2])
-        self._player4.set_hand(self.player_hands[3])
+        for i, p in enumerate(self._players):
+            p.set_hand(self.player_hands[i])
+
+    # ------------------------------------------------------------------
+    # Joining
+    # ------------------------------------------------------------------
+
+    def join(self) -> int:
+        self._join_calls += 1
+        return self._join_calls
+
+    def num_players(self) -> int:
+        return self._join_calls
+
+    # ------------------------------------------------------------------
+    # Bidding
+    # ------------------------------------------------------------------
+
+    def num_bids(self) -> int:
+        return len(self._bids)
+
+    def bid(self, player: int, bid: int, marks: int = 1) -> None:
+        """Place a bid; raises InvalidBidError if the bid is illegal."""
+        if not self.check_bid(player, bid, marks):
+            raise InvalidBidError(f"Invalid bid {bid} by P{player} (high={self._high_bid})")
+        self._bids[player] = (bid, marks)
+
+    def check_bid(self, player: int, bid: int, marks: int) -> bool:
+        """Return True iff this bid is legal given the current high bid.
+
+        bid == -1  → pass (always legal once per player)
+        bid 30-41  → standard bid; must exceed current high bid (marks must be 1)
+        bid == 42  → slam; same point-value as 42 but declared distinctly
+        bid == 0   → "Low" / Nello; must win zero tricks; marks can be >= 1
+        bid == 7   → (reserved — same as Low but with 7 marks; handled via marks arg)
+
+        For Low (0) and Slam (42) bids, the player can optionally raise the marks.
+        To beat a previous Low/Slam bid, the marks must be strictly higher.
+        """
+        # Pass is always valid (turn enforcement is in the server)
+        if bid == -1:
+            return True
+
+        hb = self._high_bid
+        hm = self._high_marks
+
+        if bid in (0, 42):
+            # Low or Slam bid
+            if marks < 1:
+                return False
+            if hb in (0, 42):
+                # Previous high is also Low/Slam — must raise marks
+                if marks <= hm:
+                    return False
+                if marks > hm + 1:
+                    return False   # can only raise by 1 mark at a time
+                self.set_high_bid(player, bid, marks)
+                return True
+            else:
+                # Previous high is a normal bid (or no bid) — Low/Slam always beats it
+                # unless marks jump is too large
+                if marks > hm + 1:
+                    return False
+                self.set_high_bid(player, bid, marks)
+                return True
+
+        else:
+            # Normal bid (30-41)
+            if marks != 1:
+                return False
+            if bid < 30 or bid > 41:
+                return False
+            if hb in (0, 42):
+                # Can't beat a Low/Slam with a normal bid
+                return False
+            if bid <= hb:
+                return False
+            self.set_high_bid(player, bid, marks)
+            return True
+
+    def set_high_bid(self, player: int, bid: int, marks: int) -> None:
+        self._high_bidder = player
+        self._high_bid = bid
+        self._high_marks = marks
+
+    def get_high_bid(self) -> tuple:
+        return (self._high_bidder, self._high_bid, self._high_marks)
+
+    def set_forced_bid(self, player: int, bid: int, marks: int = 1) -> None:
+        """Set the winning bid directly (dealer forced bid when all pass)."""
+        self._high_bidder = player
+        self._high_bid = bid
+        self._high_marks = marks
+
+    # ------------------------------------------------------------------
+    # Trump
+    # ------------------------------------------------------------------
+
+    def set_trump(self, trump) -> None:
+        """Set trump. 0-6 = pip suit; 7 = doubles; None = no trump (Low bid)."""
+        self._trump = trump
+
+    # ------------------------------------------------------------------
+    # Playing
+    # ------------------------------------------------------------------
+
+    def get_hand(self, player: int) -> list:
+        return self._players[player - 1].hand()
 
     def play(self, player: int, domino: Domino) -> bool:
         if len(self._trick) == 0:
@@ -58,197 +164,104 @@ class FourtyTwo:
         self._trick.append(domino)
         return True
 
-    def join(self) -> None:
-        self._join_calls += 1
-        return self._join_calls
-    
-    def num_players(self) -> int:
-        return self._join_calls
-    
-    def num_bids(self) -> int:
-        return len(self._bids)
-    
-    def bid(self, player: int, bid: int, marks: int = 1) -> None:
-        if self.check_bid(player, bid, marks):
-            self._bids[player] = (bid, marks)
-        else:
-            raise InvalidBidError
-    
-    def set_high_bid(self, player: int, bid: int, marks: int) -> None:
-        self._high_bidder = player
-        self._high_bid = bid
-        self._high_marks = marks
-    
-    
-    def check_bid(self, player: int, bid: int, marks: int) -> bool:
-        if bid == -1:
-            return True
-        if bid == 0 or bid == 42:
-            if self._high_bid != 0 and self._high_bid!= 42:
-                if marks > (self._high_marks + 1):
-                    return False
-                else:
-                    self.set_high_bid(player, bid, marks)
-                    return True
-            if marks > (self._high_marks + 1):
-                return False
-            elif marks <= self._high_marks:
-                #print("Marks must be greater than or equal to the current high marks")
-                return False
+    def get_trick(self) -> list:
+        return self._trick
 
-            if self._high_bid != 0 and self._high_bid != 42:
-                self.set_high_bid(player, bid, marks)
-                return True
-
-            if self._high_bid == 0:
-                if marks == self._high_marks:
-                    #print("Marks must be greater than the current high marks")
-                    return False
-                else:
-                    self.set_high_bid(player, bid, marks)
-                    return True
-            if self._high_bid == 42:
-                if marks == self._high_marks:
-                    #print("Marks must be greater than the current high marks")
-                    return False
-                else:
-                    self.set_high_bid(player, bid, marks)
-                    return True
-
-        else:
-            if marks!= 1:
-                return False
-            if self._high_bid == 0 or self._high_bid == 42:
-                #print("Bid must be greater than the current high bid")
-                return False
-                
-            elif bid > 42 or bid < 0 or (bid > 0 and bid < 30):
-                #print("Bid must be between 30 and 42 or Low (0)")
-                return False
-                
-            elif bid <= self._high_bid:
-                #print("Bid must be greater than the current high bid")
-                return False
-            else:
-                self.set_high_bid(player, bid, marks)
-                return True
-
-    
-    def get_hand(self, player: int) -> list['Domino']:
-        return self._players[player - 1].hand()
-
-    def set_trump(self, trump: int) -> None:
-        self._trump = trump
-
-    def set_bid(self, bid: str) -> None:
-        """Set the winning bid for the hand"""
-        self._bid = bid
-    
-    def get_high_bid(self) -> tuple[int, int, int]:
-        return (self._high_bidder, self._high_bid, self._high_marks)
+    def _set_trick(self, trick: list, first_move: int = None) -> None:
+        self._trick = trick
+        if first_move is not None:
+            self._first_move = first_move
 
     def set_first_move(self, first_move: int) -> None:
         self._first_move = first_move
 
-    def _set_trick(self, trick: list['Domino'], first_move: int = None) -> None:
-        self._trick = trick
-        self._first_move = first_move
-
-    def get_trick(self) -> list['Domino']:
-        return self._trick
+    # ------------------------------------------------------------------
+    # Scoring
+    # ------------------------------------------------------------------
 
     def trick_score(self) -> int:
+        """1 trick point + count-tile pip values."""
         score = 1
         for domino in self._trick:
             score += domino.value()
         return score
 
+    def get_trick_winner(self, trick: list = None, first_move: int = None) -> int:
+        """Return the player number (1-4) who wins the current trick.
+
+        Rules (standard Texas 42):
+        - Trump wins over everything. Within trump, doubles > highest non-trump pip.
+        - If no trump played, lead-suit wins. Within lead suit, doubles > highest secondary pip.
+        - Off-suit dominoes cannot win.
+        """
+        if trick is not None:
+            self._trick = trick
+        if first_move is not None:
+            self._first_move = first_move
+
+        if not self._trick:
+            return 0
+
+        # Determine lead suit
+        lead = self._trick[0]
+        trump = self._trump
+        if lead.contains(trump):
+            lead_suit = trump           # could be 7 (doubles) or 0-6
+        else:
+            lead_suit = lead.high_side(trump=trump)
+
+        winning_domino = lead
+        winner_offset = 0              # offset from first_move (0-indexed)
+
+        for offset, domino in enumerate(self._trick[1:], start=1):
+            if domino.contains(trump):
+                # Challenger is trump
+                if winning_domino.contains(trump):
+                    # Both trump — compare rank within trump suit
+                    if domino.low_side(trump=trump) > winning_domino.low_side(trump=trump):
+                        winning_domino = domino
+                        winner_offset = offset
+                else:
+                    # Challenger trump beats non-trump leader
+                    winning_domino = domino
+                    winner_offset = offset
+
+            elif lead_suit != trump and domino.contains(lead_suit):
+                # Challenger follows non-trump lead suit
+                if not winning_domino.contains(trump):
+                    # Compare within lead suit (doubles have rank 7 > any pip)
+                    if domino.low_side(lead_suit=lead_suit) > winning_domino.low_side(lead_suit=lead_suit):
+                        winning_domino = domino
+                        winner_offset = offset
+                # else: trump is already winning, non-trump can't beat it
+
+            # else: off-suit — cannot win
+
+        return (self._first_move - 1 + winner_offset) % 4 + 1
+
     def set_winner(self, winner: int) -> None:
+        """Credit winning team with trick score and clear the trick."""
         if winner % 2 == 1:
             self._team1_score += self.trick_score()
         else:
             self._team2_score += self.trick_score()
         self._trick = []
-    
-    def get_trick_winner(self, trick: list['Domino'] = None, first_move: int = None) -> int:
-        """
-        Decides the winner of the trick
-        Returns the player number (1-4) who won
-        """
-        if trick:
-            self._trick = trick
-        if first_move:
-            self._first_move = first_move
-
-        if not self._trick:
-            return 0
-            
-        winning_domino = self._trick[0]
-
-        # Get the lead suit - players must follow suit if they can
-        if winning_domino.contains(self._trump):
-            lead_suit = self._trump
-        else:
-            # If no trump was led, the lead suit is the higher side of the first domino
-            lead_suit = winning_domino.high_side()
-        
-        winner = 0
-        
-        for index, domino in enumerate(self._trick[1:], start=1):
-            #domino contains trump
-            if domino.contains(self._trump):
-                #current winner is also trump — compare within trump suit
-                if winning_domino.contains(self._trump):
-                    if domino.low_side(self._trump) > winning_domino.low_side(self._trump):
-                        winning_domino = domino
-                        winner = index
-                #current winner is not trump — new trump domino beats it
-                else:
-                    winning_domino = domino
-                    winner = index
-
-            #domino contains high side but not trump
-            elif domino.contains(lead_suit):
-                #non trump domino cannot beat a trump 
-                if lead_suit == self._trump:
-                    continue
-                #trump has not been played
-                elif winning_domino.high_side(lead_suit=lead_suit) == winning_domino.low_side(lead_suit=lead_suit):
-                    continue 
-                elif domino.high_side(lead_suit=lead_suit) == domino.low_side(lead_suit=lead_suit):
-                    winning_domino = domino
-                    winner = index
-                elif domino.low_side(lead_suit=lead_suit) > winning_domino.low_side(lead_suit=lead_suit):
-                    winning_domino = domino
-                    winner = index
-
-            #if domino does not have trump or high side, it cannot win
-        return (self._first_move - 1 + winner) % 4 + 1
-
-    def get_team_scores(self) -> tuple[int, int]:
-        """Get current team scores"""
-        return (self._team1_score, self._team2_score)
 
     def clear_trick(self) -> None:
-        """Clear the current trick"""
         self._trick = []
 
-    def deal_dominoes(self) -> None:
-        """Deal dominoes to players (alias for shuffle for backward compatibility)"""
-        self.shuffle()
+    def get_team_scores(self) -> tuple:
+        return (self._team1_score, self._team2_score)
 
     def get_bid(self) -> int:
-        """Get the current winning bid value"""
         return self._high_bid
 
-    def set_forced_bid(self, player: int, bid: int, marks: int = 1) -> None:
-        """Set the winning bid directly (used when all players pass and dealer is forced to bid)."""
-        self._high_bidder = player
-        self._high_bid    = bid
-        self._high_marks  = marks
+    # ------------------------------------------------------------------
+    # Hand reset
+    # ------------------------------------------------------------------
 
     def reset_hand(self) -> None:
-        """Reset all hand-level state for a new hand while preserving team marks"""
+        """Reset all hand-level state (preserves nothing — caller tracks totals)."""
         self._trump = None
         self._trick = []
         self._first_move = 1
@@ -260,20 +273,10 @@ class FourtyTwo:
         self._high_bid = -1
         self._high_bidder = None
         self._high_marks = 1
-        self._bid = -1
-        self._player1 = Player(1)
-        self._player2 = Player(2)
-        self._player3 = Player(3)
-        self._player4 = Player(4)
-        self._players = [self._player1, self._player2, self._player3, self._player4]
+        self._players = [Player(1), Player(2), Player(3), Player(4)]
         self._team1_score = 0
         self._team2_score = 0
 
-
-
-
-
-
-
-
-        
+    # Backward-compat alias
+    def deal_dominoes(self) -> None:
+        self.shuffle()

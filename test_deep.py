@@ -77,8 +77,11 @@ class TestDominoContains(unittest.TestCase):
     def test_does_not_contain_none(self):
         self.assertFalse(Domino((6, 5)).contains(None))
 
-    def test_does_not_contain_7(self):
-        self.assertFalse(Domino((6, 6)).contains(7))
+    def test_doubles_contain_7_doubles_trump(self):
+        """trump=7 means doubles-as-trump; contains(7) is True for doubles."""
+        self.assertTrue(Domino((6, 6)).contains(7))
+        self.assertTrue(Domino((0, 0)).contains(7))
+        self.assertFalse(Domino((6, 5)).contains(7))
 
 
 class TestDominoValue(unittest.TestCase):

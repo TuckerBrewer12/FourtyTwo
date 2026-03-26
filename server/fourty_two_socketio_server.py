@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 FourtyTwo – Real-time multiplayer Socket.IO server.
 
@@ -12,19 +13,27 @@ Person LEFT of dealer bids first.
 Scoring modes
 -------------
 "points_250"  – standard: first team to 250 cumulative points wins.
-                If bid made:  both teams add their actual trick/count points.
-                If bid fails: bid team adds 0; opponents add bid + their points.
-"marks_7"     – variation: each hand awards 1 mark; first to 7 marks wins.
+                Made bid: both teams add their actual trick/count points.
+                Set bid:  bidding team scores 0; opponents score bid + their points.
+"marks_7"     – each hand awards marks equal to the marks bid; first to 7 marks wins.
+
+Trump
+-----
+0-6  = standard pip suit (e.g. trump=5 means all dominoes containing a 5 are trump)
+7    = Doubles are trump (all 7 doubles form the trump suit, ranked 6-6 down to 0-0)
+None = no trump (Low / Nello bid)
 """
 
-import eventlet
-eventlet.monkey_patch()
-
-import sys, os, uuid, logging
+import sys
+import os
+import uuid
+import logging
+import threading
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flask import Flask, send_from_directory, request
+from flask import Flask, send_from_directory, request, make_response
 from flask_socketio import SocketIO, join_room as sio_join_room, leave_room as sio_leave_room, emit
 from fourty_two_game import FourtyTwo, InvalidBidError
 from domino import Domino
@@ -36,78 +45,13 @@ _rooms: dict = {}          # room_id → GameRoom
 
 POINTS_TO_WIN = 250
 MARKS_TO_WIN  = 7
-MAX_CHAT      = 60
-
-# Short game phrases allowed in chat alongside emoji
-CHAT_PHRASES = {
-    "Nice Play!", "Good Bid!", "Oops!", "Let's Go!", "Lucky!", "GG!",
-    "Well Done!", "So Close!", "Got'em!", "Wow!", "No way!", "Let's go!",
-}
+MAX_CHAT      = 80
+BOT_DELAY     = 1.0        # seconds between bot moves (feels natural)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-def _is_emoji_only(text: str) -> bool:
-    """Return True if text contains only emoji characters (no letters, digits, or punctuation)."""
-    text = text.strip()
-    if not text:
-        return False
-    # Unicode ranges that are emoji or emoji-support characters
-    _EMOJI_RANGES = [
-        (0x00A9, 0x00A9),   # ©
-        (0x00AE, 0x00AE),   # ®
-        (0x203C, 0x2049),   # ‼ to ⁉
-        (0x2122, 0x2122),   # ™
-        (0x2139, 0x2139),   # ℹ
-        (0x2194, 0x21AA),   # Arrows
-        (0x231A, 0x231B),   # Watch/hourglass
-        (0x2328, 0x2328),   # Keyboard
-        (0x23CF, 0x23CF),
-        (0x23E9, 0x23F3),
-        (0x23F8, 0x23FA),
-        (0x24C2, 0x24C2),
-        (0x25AA, 0x25AB),
-        (0x25B6, 0x25B6),
-        (0x25C0, 0x25C0),
-        (0x25FB, 0x25FE),
-        (0x2600, 0x27BF),   # Misc symbols + dingbats
-        (0x2934, 0x2935),
-        (0x2B05, 0x2B07),
-        (0x2B1B, 0x2B1C),
-        (0x2B50, 0x2B55),
-        (0x3030, 0x3030),
-        (0x303D, 0x303D),
-        (0x3297, 0x3297),
-        (0x3299, 0x3299),
-        (0x1F004, 0x1F004),
-        (0x1F0CF, 0x1F0CF),
-        (0x1F170, 0x1F171),
-        (0x1F17E, 0x1F17F),
-        (0x1F18E, 0x1F18E),
-        (0x1F191, 0x1F19A),
-        (0x1F1E0, 0x1F1FF),  # Regional indicators (flags)
-        (0x1F201, 0x1F202),
-        (0x1F21A, 0x1F21A),
-        (0x1F22F, 0x1F22F),
-        (0x1F232, 0x1F23A),
-        (0x1F250, 0x1F251),
-        (0x1F300, 0x1F9FF),  # Main emoji block
-        (0x1FA00, 0x1FA6F),
-        (0x1FA70, 0x1FAFF),
-        (0xFE00, 0xFE0F),    # Variation selectors
-        (0x200D, 0x200D),    # Zero-width joiner
-        (0x20E3, 0x20E3),    # Combining enclosing keycap
-    ]
-    for ch in text:
-        if ch == ' ':
-            continue
-        cp = ord(ch)
-        if not any(lo <= cp <= hi for lo, hi in _EMOJI_RANGES):
-            return False
-    return True
-
 
 def _unique_room_id() -> str:
     while True:
@@ -116,8 +60,11 @@ def _unique_room_id() -> str:
             return rid
 
 
-def _compute_valid_plays(room, pnum: int) -> list[list[int]]:
-    """Returns list of [a,b] dominos the player may legally play."""
+SUIT_NAMES = ['Blanks', 'Aces', 'Deuces', 'Threes', 'Fours', 'Fives', 'Sixes', 'Doubles']
+
+
+def _compute_valid_plays(room, pnum: int) -> list:
+    """Return list of [a,b] dominoes the player may legally play."""
     try:
         hand = room.game.get_hand(pnum)
     except Exception:
@@ -125,20 +72,23 @@ def _compute_valid_plays(room, pnum: int) -> list[list[int]]:
     trick_objs = room.game.get_trick()
     trump = room.game._trump
 
-    if not trick_objs:  # leading the trick — all valid
+    if not trick_objs:        # leading — everything valid
         return [d.to_list() for d in hand]
 
     lead = trick_objs[0]
+    # Determine lead suit
     if trump is not None and lead.contains(trump):
         lead_suit = trump
     else:
         lead_suit = lead.high_side(trump=trump)
 
     if lead_suit == trump:
+        # Trump was led — must follow with any trump domino
         has_suit = any(d.contains(trump) for d in hand)
         if has_suit:
             return [d.to_list() for d in hand if d.contains(trump)]
     else:
+        # Non-trump led — only non-trump dominoes of the lead suit count
         has_suit = any(
             d.contains(lead_suit) and (trump is None or not d.contains(trump))
             for d in hand
@@ -150,13 +100,12 @@ def _compute_valid_plays(room, pnum: int) -> list[list[int]]:
     return [d.to_list() for d in hand]
 
 
-def _compute_seat_map(my_pnum: int) -> dict[int, str]:
-    """Returns {player_num: seat} with my_pnum always sitting South."""
+def _compute_seat_map(my_pnum: int) -> dict:
+    """Return {player_num: seat} with my_pnum always sitting South."""
     seats = ['south', 'west', 'north', 'east']
     return {((my_pnum - 1 + offset) % 4) + 1: seats[offset] for offset in range(4)}
 
 
-# Spectators view the table from a fixed angle: P1=North, P2=East, P3=South, P4=West
 _SPECTATOR_SEAT_MAP = {1: 'north', 2: 'east', 3: 'south', 4: 'west'}
 
 
@@ -167,13 +116,146 @@ def _safe_hand_len(game, pnum: int) -> int:
         return 7
 
 
-def _compute_available_bids(room) -> list[int]:
-    """Returns the list of legally biddable values for the current bidder."""
+def _compute_available_bids(room) -> list:
+    """Return legally biddable values for the current bidder (excludes 0/42/pass)."""
     if not room.game or room.phase != "bidding":
         return []
     hb = room.game._high_bid
     base = hb if (hb is not None and hb > 0) else 29
-    return list(range(max(30, base + 1), 42))  # 42/Slam shown separately in BidModal
+    return list(range(max(30, base + 1), 43))   # 30-42 inclusive
+
+
+# ---------------------------------------------------------------------------
+# Bot AI
+# ---------------------------------------------------------------------------
+
+def _bot_hand_strength(hand: list, possible_trump: int) -> float:
+    """Estimate how many tricks this hand will win with possible_trump as trump."""
+    strength = 0.0
+    for d in hand:
+        if d.contains(possible_trump):
+            strength += 1.0              # each trump is worth ~1 trick
+            if d.nums()[0] == d.nums()[1]:
+                strength += 0.3          # double trump is even stronger
+        else:
+            a, b = d.nums()
+            if a == b:
+                strength += 0.7          # non-trump double wins its suit
+            elif max(a, b) >= 5:
+                strength += 0.3          # high pips have a shot
+    return strength
+
+
+def _bot_choose_bid(room, pnum: int) -> tuple:
+    """Return (bid, marks). Returns (-1, 1) to pass."""
+    hand = room.game.get_hand(pnum)
+    hb   = room.game._high_bid
+    hm   = room.game._high_marks
+
+    # Evaluate each trump option 0-7
+    best_trump   = 0
+    best_strength = 0.0
+    for t in range(8):
+        s = _bot_hand_strength(hand, t)
+        if s > best_strength:
+            best_strength = s
+            best_trump = t
+
+    # Count tiles in hand that are count tiles (pip total divisible by 5)
+    count_bonus = sum(d.value() > 0 for d in hand) * 1.5
+
+    estimated_pts = best_strength * 5.5 + count_bonus
+    raw_bid = int(estimated_pts)
+
+    # Round to legal bid range 30-41 (42 only for extraordinary hands)
+    bid_val = max(30, min(41, raw_bid))
+
+    # Must beat current high bid
+    if hb in (0, 42):
+        return (-1, 1)   # can't beat Low/Slam with a normal bid
+    if hb >= bid_val:
+        return (-1, 1)   # pass
+
+    return (bid_val, 1)
+
+
+def _bot_choose_trump(room, pnum: int) -> int:
+    """Choose the best trump suit for the hand (0-7)."""
+    hand = room.game.get_hand(pnum)
+    best_t = max(range(8), key=lambda t: _bot_hand_strength(hand, t))
+    return best_t
+
+
+def _bot_choose_play(room, pnum: int) -> list:
+    """Choose the best domino for a bot to play."""
+    valid = _compute_valid_plays(room, pnum)
+    if not valid:
+        hand = room.game.get_hand(pnum)
+        return hand[0].to_list() if hand else [0, 0]
+
+    trump = room.game._trump
+    trick = room.game.get_trick()
+
+    if not trick:
+        # Leading the trick
+        trump_plays = [d for d in valid if trump is not None and Domino(d).contains(trump)]
+        count_plays = [d for d in valid if Domino(d).value() > 0]
+        if trump_plays:
+            # Lead high trump
+            return max(trump_plays, key=lambda d: Domino(d).low_side(trump=trump))
+        if count_plays:
+            # Lead count tile — try to win it
+            return max(count_plays, key=lambda d: Domino(d).value())
+        # Lead highest non-trump
+        return max(valid, key=lambda d: max(d[0], d[1]))
+
+    # Following a lead — determine if partner is currently winning
+    lead = trick[0]
+    if trump is not None and lead.contains(trump):
+        lead_suit = trump
+    else:
+        lead_suit = lead.high_side(trump=trump)
+
+    # Walk through trick to find current winner offset
+    # trick contains Domino objects already — do NOT re-wrap with Domino()
+    winning_d = trick[0]
+    win_off = 0
+    for off, td in enumerate(trick[1:], 1):
+        challenger = td
+        if challenger.contains(trump):
+            if not winning_d.contains(trump):
+                winning_d = challenger; win_off = off
+            elif challenger.low_side(trump=trump) > winning_d.low_side(trump=trump):
+                winning_d = challenger; win_off = off
+        elif lead_suit != trump and challenger.contains(lead_suit):
+            if not winning_d.contains(trump):
+                if challenger.low_side(lead_suit=lead_suit) > winning_d.low_side(lead_suit=lead_suit):
+                    winning_d = challenger; win_off = off
+
+    winner_pnum  = (room.first_move - 1 + win_off) % 4 + 1
+    partner_pnum = ((pnum - 1) ^ 2) + 1       # 1↔3, 2↔4
+    partner_winning = (winner_pnum == partner_pnum)
+
+    if partner_winning:
+        # Dump the lowest non-count domino; if none, dump lowest count
+        non_count = [d for d in valid if Domino(d).value() == 0]
+        if non_count:
+            return min(non_count, key=lambda d: max(d[0], d[1]))
+        return min(valid, key=lambda d: Domino(d).value())
+    else:
+        # Try to win
+        trump_plays = [d for d in valid if trump is not None and Domino(d).contains(trump)]
+        if trump_plays:
+            return max(trump_plays, key=lambda d: Domino(d).low_side(trump=trump))
+        lead_plays  = [d for d in valid if Domino(d).contains(lead_suit)
+                       and (trump is None or not Domino(d).contains(trump))]
+        if lead_plays:
+            return max(lead_plays, key=lambda d: Domino(d).low_side(lead_suit=lead_suit))
+        # Off-suit — dump lowest count or lowest pip
+        non_count = [d for d in valid if Domino(d).value() == 0]
+        if non_count:
+            return min(non_count, key=lambda d: max(d[0], d[1]))
+        return min(valid, key=lambda d: Domino(d).value())
 
 
 # ---------------------------------------------------------------------------
@@ -191,6 +273,9 @@ class GameRoom:
         self.sid_by_num: dict = {}   # player_num(1-4) → sid
         self.names:      dict = {}   # player_num → display name
 
+        # Bots
+        self.bots: set  = set()      # player nums that are bots
+
         # Spectators
         self.spectators: dict = {}   # sid → name
 
@@ -200,26 +285,24 @@ class GameRoom:
         self.first_move  = 1
         self.trick_count = 0
         self.hand_num    = 1
-        self.dealer      = 1         # rotates left (clockwise) after each hand
+        self.dealer      = 1
 
-        # Cumulative scores (250-point game)
+        # Cumulative scores
         self.team1_total = 0
         self.team2_total = 0
-
-        # Marks (7-mark variant)
         self.team1_marks = 0
         self.team2_marks = 0
 
-        self.hand_history: list = []  # [{...}, ...]
-        self.chat_history: list = []  # [{name, msg, ts}, ...]
+        # Bid log for current hand [{player, bid, marks}, ...]
+        self.bid_log: list = []
+
+        self.hand_history: list = []
+        self.chat_history: list = []
 
         self.last_trick_winner:  int | None = None
         self.last_trick_dominos: list = []
 
     # ------------------------------------------------------------------
-    # Player / spectator management
-    # ------------------------------------------------------------------
-
     def add_player(self, sid: str, name: str):
         if len(self.players) >= 4:
             return None, "Room is full"
@@ -231,6 +314,12 @@ class GameRoom:
         self.game.join()
         return player_num, None
 
+    def add_bot(self, bot_sid: str, name: str):
+        pnum, err = self.add_player(bot_sid, name)
+        if pnum:
+            self.bots.add(pnum)
+        return pnum, err
+
     def add_spectator(self, sid: str, name: str) -> int:
         self.spectators[sid] = name
         return len(self.spectators)
@@ -241,6 +330,7 @@ class GameRoom:
         pn = self.players[sid]["num"]
         del self.players[sid]
         self.sid_by_num.pop(pn, None)
+        self.bots.discard(pn)
         return pn
 
     def remove_spectator(self, sid: str):
@@ -257,30 +347,24 @@ class GameRoom:
         return len(self.players) == 4
 
     # ------------------------------------------------------------------
-    # Hand lifecycle
-    # ------------------------------------------------------------------
-
     def start_hand(self):
         self.game.reset_hand()
         for _ in range(4):
             self.game.join()
         self.game.shuffle()
 
-        # Bidding starts with person left of dealer
         self.phase       = "bidding"
         self.bid_turn    = self.dealer % 4 + 1
         self.trick_count = 0
+        self.bid_log     = []
         self.last_trick_winner  = None
         self.last_trick_dominos = []
 
     # ------------------------------------------------------------------
-    # State snapshot
-    # ------------------------------------------------------------------
-
     def get_state(self, for_player: int | None = None, is_spectator: bool = False) -> dict:
-        t1, t2       = self.game.get_team_scores()
-        trick_objs   = self.game.get_trick()
-        trick_info   = [
+        t1, t2     = self.game.get_team_scores()
+        trick_objs = self.game.get_trick()
+        trick_info = [
             {"domino": d.to_list(), "player": (self.first_move - 1 + i) % 4 + 1}
             for i, d in enumerate(trick_objs)
         ]
@@ -292,6 +376,7 @@ class GameRoom:
             "hand_num":       self.hand_num,
             "dealer":         self.dealer,
             "players":        self.names,
+            "bots":           list(self.bots),
             "spectators":     list(self.spectators.values()),
             "num_players":    len(self.players),
             "num_spectators": len(self.spectators),
@@ -300,7 +385,7 @@ class GameRoom:
             "first_move":     self.first_move,
             "trick_count":    self.trick_count,
             "trick":          trick_info,
-            "team1_score":    t1,         # this hand
+            "team1_score":    t1,
             "team2_score":    t2,
             "team1_total":    self.team1_total,
             "team2_total":    self.team2_total,
@@ -310,14 +395,12 @@ class GameRoom:
             "high_bidder":    self.game._high_bidder,
             "high_marks":     self.game._high_marks,
             "trump":          self.game._trump,
+            "bid_log":        self.bid_log,
             "last_trick_winner": self.last_trick_winner,
-            "chat_history":   self.chat_history[-25:],
+            "chat_history":   self.chat_history[-30:],
             "hand_history":   self.hand_history[-5:],
-            # Server-computed config / derived state (never recomputed on client)
             "team_map":       {1: 1, 2: 2, 3: 1, 4: 2},
-            "tile_counts":    {
-                p: _safe_hand_len(self.game, p) for p in range(1, 5)
-            },
+            "tile_counts":    {p: _safe_hand_len(self.game, p) for p in range(1, 5)},
             "available_bids": _compute_available_bids(self),
             "total_tricks":   7,
             "win_target":     250 if self.game_mode == "points_250" else 7,
@@ -333,17 +416,13 @@ class GameRoom:
         return state
 
     # ------------------------------------------------------------------
-    # Finish hand – proper 250-point OR 7-mark scoring
-    # ------------------------------------------------------------------
-
     def finish_hand(self, sio: SocketIO):
         t1, t2      = self.game.get_team_scores()
         high_bidder = self.game._high_bidder
         high_bid    = self.game._high_bid
         high_marks  = self.game._high_marks
 
-        # If everyone passed → dealer is forced to bid 30
-        if high_bidder is None:
+        if high_bidder is None:    # forced dealer bid when all passed
             high_bidder = self.dealer % 4 + 1
             high_bid    = 30
             high_marks  = 1
@@ -354,20 +433,20 @@ class GameRoom:
         bid_score = t1 if bid_team == 1 else t2
         opp_score = t2 if bid_team == 1 else t1
 
-        # Was the bid made?
-        if high_bid == 0:         # Low bid: win by taking ZERO count tiles
-            made = bid_score <= 7
-        elif high_bid == 42:      # Slam: must capture all 42 points
+        # --- Was the bid made? ---
+        if high_bid == 0:          # Low/Nello: must win ZERO tricks (score == 0)
+            made = bid_score == 0
+        elif high_bid == 42:       # Slam: must capture all 42 points
             made = bid_score == 42
         else:
             made = bid_score >= high_bid
 
-        # Calculate points this hand
+        # --- Points gained this hand ---
         if made:
             t1_gain = t1
             t2_gain = t2
         else:
-            # Bidding team scores 0; opponents get bid + their actual points
+            # Set: bidding team gets 0; opponents get bid + their actual points
             if bid_team == 1:
                 t1_gain = 0
                 t2_gain = high_bid + opp_score
@@ -375,35 +454,38 @@ class GameRoom:
                 t2_gain = 0
                 t1_gain = high_bid + opp_score
 
-        # Update marks (both modes track marks)
+        # --- Marks update (both modes) ---
+        # BUG FIX: award high_marks marks, not just 1
+        marks_awarded = max(1, high_marks)
         if made:
             if bid_team == 1:
-                self.team1_marks += 1
+                self.team1_marks += marks_awarded
             else:
-                self.team2_marks += 1
+                self.team2_marks += marks_awarded
         else:
             if opp_team == 1:
-                self.team1_marks += 1
+                self.team1_marks += marks_awarded
             else:
-                self.team2_marks += 1
+                self.team2_marks += marks_awarded
 
-        # Update cumulative totals
+        # --- Cumulative totals ---
         self.team1_total += t1_gain
         self.team2_total += t2_gain
 
-        # Record in history
+        # --- History ---
         self.hand_history.append({
-            "hand_num":   self.hand_num,
-            "bid_team":   bid_team,
-            "high_bid":   high_bid,
-            "made":       made,
-            "t1_gained":  t1_gain,
-            "t2_gained":  t2_gain,
-            "t1_total":   self.team1_total,
-            "t2_total":   self.team2_total,
+            "hand_num":  self.hand_num,
+            "bid_team":  bid_team,
+            "high_bid":  high_bid,
+            "high_marks": high_marks,
+            "made":      made,
+            "t1_gained": t1_gain,
+            "t2_gained": t2_gain,
+            "t1_total":  self.team1_total,
+            "t2_total":  self.team2_total,
         })
 
-        # Check win condition
+        # --- Win check ---
         if self.game_mode == "marks_7":
             game_over = (self.team1_marks >= MARKS_TO_WIN or
                          self.team2_marks >= MARKS_TO_WIN)
@@ -411,13 +493,9 @@ class GameRoom:
             game_over = (self.team1_total >= POINTS_TO_WIN or
                          self.team2_total >= POINTS_TO_WIN)
 
-        # Rotate dealer
         self.dealer = self.dealer % 4 + 1
-
-        self.phase = "game_complete" if game_over else "hand_complete"
-
-        # Hand winner (also the game winner when game_over is True)
         winner_team = bid_team if made else opp_team
+        self.phase  = "game_complete" if game_over else "hand_complete"
 
         sio.emit("hand_complete", {
             "bid_team":     bid_team,
@@ -454,19 +532,217 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
 
-    sio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet",
+    sio = SocketIO(app, cors_allowed_origins="*", async_mode="threading",
                    logger=False, engineio_logger=False)
+
+    # ------------------------------------------------------------------ helpers
+
+    def _resolve(data):
+        room_id = (data.get("room_id") or "").strip().upper()
+        if room_id not in _rooms:
+            return None, None, f"Room '{room_id}' not found"
+        room = _rooms[room_id]
+        pnum = room.get_player_num(request.sid)
+        if pnum is None:
+            return None, None, "You are not a player in this room"
+        return room, pnum, None
+
+    def _push_turn(room: GameRoom):
+        for pnum, psid in room.sid_by_num.items():
+            is_turn = pnum == room.play_turn
+            try:
+                hand = [d.to_list() for d in room.game.get_hand(pnum)]
+            except Exception:
+                hand = []
+            payload = {
+                "hand":        hand,
+                "play_turn":   room.play_turn,
+                "action":      "play" if is_turn else "wait",
+                "seat_map":    _compute_seat_map(pnum),
+                "valid_plays": _compute_valid_plays(room, pnum) if is_turn else [],
+            }
+            sio.emit("your_turn" if is_turn else "waiting", payload, room=psid)
+
+    # ---- Bot orchestration -----------------------------------------------
+
+    def _schedule_bot(room_id: str, delay: float = BOT_DELAY):
+        """Schedule _run_bot_action after delay seconds."""
+        t = threading.Timer(delay, _run_bot_action, args=[room_id])
+        t.daemon = True
+        t.start()
+
+    def _run_bot_action(room_id: str):
+        try:
+            _run_bot_action_inner(room_id)
+        except Exception as exc:
+            logger.exception("Bot action crashed in room %s: %s", room_id, exc)
+            # Attempt recovery: reschedule if it's still a bot's turn
+            if room_id in _rooms:
+                room = _rooms[room_id]
+                if room.phase == "playing" and room.play_turn in room.bots:
+                    _schedule_bot(room_id, delay=2.0)
+                elif room.phase == "bidding" and room.bid_turn in room.bots:
+                    _schedule_bot(room_id, delay=2.0)
+                elif room.phase == "trump_selection" and room.game._high_bidder in room.bots:
+                    _schedule_bot(room_id, delay=2.0)
+
+    def _run_bot_action_inner(room_id: str):
+        if room_id not in _rooms:
+            return
+        room = _rooms[room_id]
+
+        if room.phase == "bidding":
+            pnum = room.bid_turn
+            if pnum not in room.bots:
+                return
+            bid_val, marks = _bot_choose_bid(room, pnum)
+            try:
+                room.game.bid(pnum, bid_val, marks)
+            except InvalidBidError:
+                bid_val, marks = -1, 1
+                room.game.bid(pnum, -1, 1)
+
+            bid_str = "passed" if bid_val == -1 else f"bid {bid_val}"
+            room.bid_log.append({"player": pnum, "name": room.names.get(pnum, f"P{pnum}"),
+                                  "bid": bid_val, "marks": marks})
+            room.bid_turn = room.bid_turn % 4 + 1
+            bids_placed = len(room.game._bids)
+
+            sio.emit("bid_placed", {
+                "player_num": pnum, "bid": bid_val, "marks": marks,
+                "bid_turn": room.bid_turn, "bids_placed": bids_placed,
+                "high_bid": room.game._high_bid,
+                "high_bidder": room.game._high_bidder,
+                "high_marks": room.game._high_marks,
+                "available_bids": _compute_available_bids(room),
+                "bid_log": room.bid_log,
+            }, room=room_id)
+
+            if bids_placed == 4:
+                _complete_bidding(room)
+            elif room.bid_turn in room.bots:
+                _schedule_bot(room_id)
+
+        elif room.phase == "trump_selection":
+            pnum = room.game._high_bidder
+            if pnum not in room.bots:
+                return
+            trump = _bot_choose_trump(room, pnum)
+            room.game.set_trump(trump)
+            room.phase = "playing"
+            room.trick_count = 0
+            sio.emit("trump_set", {
+                "trump": trump, "first_move": room.first_move,
+                "state": room.get_state(),
+            }, room=room_id)
+            _push_turn(room)
+            if room.play_turn in room.bots:
+                _schedule_bot(room_id)
+
+        elif room.phase == "playing":
+            pnum = room.play_turn
+            if pnum not in room.bots:
+                return
+            raw = _bot_choose_play(room, pnum)
+            domino = Domino(raw)
+            success = room.game.play(pnum, domino)
+            if not success:
+                return
+
+            trick_objs = room.game.get_trick()
+            trick_snap = [
+                {"domino": d.to_list(), "player": (room.first_move - 1 + i) % 4 + 1}
+                for i, d in enumerate(trick_objs)
+            ]
+            sio.emit("domino_played", {
+                "player_num": pnum, "domino": raw, "trick": trick_snap,
+            }, room=room_id)
+
+            if len(trick_objs) == 4:
+                winner      = room.game.get_trick_winner()
+                trick_score = room.game.trick_score()
+                room.game.set_winner(winner)
+                room.last_trick_winner  = winner
+                room.last_trick_dominos = [d.to_list() for d in trick_objs]
+                room.trick_count += 1
+                room.first_move  = winner
+                room.play_turn   = winner
+                t1, t2 = room.game.get_team_scores()
+                sio.emit("trick_complete", {
+                    "winner": winner,
+                    "winner_name": room.names.get(winner, f"P{winner}"),
+                    "team": 1 if winner % 2 == 1 else 2,
+                    "trick_score": trick_score,
+                    "trick_dominos": room.last_trick_dominos,
+                    "team1_score": t1, "team2_score": t2,
+                    "team1_total": room.team1_total,
+                    "team2_total": room.team2_total,
+                    "trick_count": room.trick_count,
+                }, room=room_id)
+                if room.trick_count == 7:
+                    room.finish_hand(sio)
+                else:
+                    _push_turn(room)
+                    if room.play_turn in room.bots:
+                        _schedule_bot(room_id, delay=1.2)
+            else:
+                room.play_turn = room.play_turn % 4 + 1
+                _push_turn(room)
+                if room.play_turn in room.bots:
+                    _schedule_bot(room_id)
+
+    def _complete_bidding(room: GameRoom):
+        hb  = room.game._high_bidder
+        hbid = room.game._high_bid
+        hm  = room.game._high_marks
+
+        if hb is None:          # all passed → dealer forced bid 30
+            hb   = room.dealer % 4 + 1
+            hbid = 30
+            hm   = 1
+            room.game.set_forced_bid(hb, hbid, hm)
+
+        room.first_move = hb
+        room.play_turn  = hb
+
+        if hbid == 0:           # Low bid — no trump
+            room.phase = "playing"
+            room.trick_count = 0
+            room.game.set_trump(None)
+            sio.emit("bidding_complete", {
+                "high_bidder": hb, "high_bid": hbid, "high_marks": hm,
+                "state": room.get_state(),
+            }, room=room.room_id)
+            sio.emit("trump_set", {
+                "trump": None, "first_move": room.first_move,
+                "state": room.get_state(),
+            }, room=room.room_id)
+            _push_turn(room)
+            if room.play_turn in room.bots:
+                _schedule_bot(room.room_id)
+        else:
+            room.phase = "trump_selection"
+            sio.emit("bidding_complete", {
+                "high_bidder": hb, "high_bid": hbid, "high_marks": hm,
+                "state": room.get_state(),
+            }, room=room.room_id)
+            if hb in room.bots:
+                _schedule_bot(room.room_id)
 
     # ------------------------------------------------------------------ HTTP
 
     @app.route("/")
     @app.route("/join/<room_id>")
     def index(**_):
-        return send_from_directory(app.static_folder, "index.html")
+        resp = make_response(send_from_directory(app.static_folder, "index.html"))
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
 
     @app.route("/api/fill-bots/<room_id>")
     def fill_bots(room_id):
-        """Fill remaining seats with server-side bots for testing."""
+        """Fill empty seats with bots and start the game."""
         room_id = room_id.strip().upper()
         if room_id not in _rooms:
             return {"ok": False, "error": "Room not found"}, 404
@@ -474,29 +750,41 @@ def create_app(test_config=None):
         if room.phase != "waiting":
             return {"ok": False, "error": "Game already started"}, 400
 
-        bot_names = ["Bot-A", "Bot-B", "Bot-C"]
+        bot_names = ["Bot-Alpha", "Bot-Beta", "Bot-Gamma"]
         added = []
         bi = 0
         while len(room.players) < 4 and bi < len(bot_names):
             bot_sid = f"bot-{room_id}-{bi}"
-            pnum, err = room.add_player(bot_sid, bot_names[bi])
+            pnum, err = room.add_bot(bot_sid, bot_names[bi])
             if err:
                 break
-            sio_join_room(room_id, sid=bot_sid, namespace="/")
+            # NOTE: do NOT call sio_join_room for bots — they have no real socket
+            # and join_room requires an active SocketIO request context.
             added.append({"num": pnum, "name": bot_names[bi]})
             sio.emit("player_joined", {
-                "player_num": pnum, "name": bot_names[bi], "state": room.get_state()
+                "player_num": pnum, "name": bot_names[bi],
+                "state": room.get_state(),
             }, room=room_id)
             bi += 1
 
-        # If room is now full, start the game
         if room.all_players_present():
             room.start_hand()
+            # Emit game_started only to real (non-bot) players
             for p, s in room.sid_by_num.items():
+                if p in room.bots:
+                    continue  # bots have no real socket connections
                 sio.emit("game_started", {
                     "state": room.get_state(p),
                     "seat_map": _compute_seat_map(p),
                 }, room=s)
+            for s in room.spectators:
+                sio.emit("game_started", {
+                    "state": room.get_state(),
+                    "seat_map": _SPECTATOR_SEAT_MAP,
+                }, room=s)
+            # Kick off bots if first bidder is a bot
+            if room.bid_turn in room.bots:
+                _schedule_bot(room_id)
 
         return {"ok": True, "added": added, "total": len(room.players)}
 
@@ -509,12 +797,11 @@ def create_app(test_config=None):
         return {
             "rooms": [
                 {
-                    "id":           rid,
-                    "players":      r.names,
-                    "num_players":  len(r.players),
+                    "id": rid, "players": r.names,
+                    "num_players": len(r.players),
                     "num_spectators": len(r.spectators),
-                    "phase":        r.phase,
-                    "game_mode":    r.game_mode,
+                    "phase": r.phase, "game_mode": r.game_mode,
+                    "bots": list(r.bots),
                 }
                 for rid, r in _rooms.items()
             ]
@@ -537,12 +824,10 @@ def create_app(test_config=None):
                 sio.emit("player_left", {
                     "player_num": pnum, "name": name, "state": room.get_state()
                 }, room=room_id)
-                # If a player leaves during an active game, unfreeze remaining players
                 if room.phase in ("bidding", "trump_selection", "playing"):
                     room.phase = "hand_complete"
                     sio.emit("game_abandoned", {
-                        "player_num": pnum,
-                        "name": name,
+                        "player_num": pnum, "name": name,
                         "message": f"{name} disconnected. Start a new hand when ready.",
                         "state": room.get_state(),
                     }, room=room_id)
@@ -572,11 +857,8 @@ def create_app(test_config=None):
         logger.info("room %s created by %s (P%s) mode=%s", room_id, name, pnum, game_mode)
 
         emit("room_joined", {
-            "room_id":    room_id,
-            "player_num": pnum,
-            "name":       name,
-            "game_mode":  game_mode,
-            "state":      room.get_state(pnum),
+            "room_id": room_id, "player_num": pnum, "name": name,
+            "game_mode": game_mode, "state": room.get_state(pnum),
         })
 
     @sio.on("join_game")
@@ -592,17 +874,15 @@ def create_app(test_config=None):
 
         if len(room.players) >= 4:
             emit("room_full", {
-                "room_id":    room_id,
-                "num_players": len(room.players),
+                "room_id": room_id, "num_players": len(room.players),
                 "num_spectators": len(room.spectators),
-                "message":    "This room is full (4/4 players). Would you like to spectate?",
+                "message": "This room is full (4/4 players). Would you like to spectate?",
             })
             return
 
         pnum, err = room.add_player(request.sid, name)
         if err:
-            emit("error", {"message": err})
-            return
+            emit("error", {"message": err}); return
 
         sio_join_room(room_id)
         sio.emit("player_joined", {
@@ -626,6 +906,8 @@ def create_app(test_config=None):
                     "state": room.get_state(),
                     "seat_map": _SPECTATOR_SEAT_MAP,
                 }, room=s)
+            if room.bid_turn in room.bots:
+                _schedule_bot(room_id)
 
     @sio.on("join_spectator")
     def on_join_spectator(data):
@@ -633,8 +915,7 @@ def create_app(test_config=None):
         room_id = (data.get("room_id") or "").strip().upper()
 
         if room_id not in _rooms:
-            emit("error", {"message": f"Room '{room_id}' not found"})
-            return
+            emit("error", {"message": f"Room '{room_id}' not found"}); return
 
         room = _rooms[room_id]
         room.add_spectator(request.sid, name)
@@ -642,8 +923,8 @@ def create_app(test_config=None):
 
         sio.emit("spectator_joined", {"name": name, "state": room.get_state()}, room=room_id)
         emit("spectator_confirmed", {
-            "room_id":  room_id, "name": name,
-            "state":    room.get_state(is_spectator=True),
+            "room_id": room_id, "name": name,
+            "state": room.get_state(is_spectator=True),
         })
 
     # ---------- bidding
@@ -659,61 +940,46 @@ def create_app(test_config=None):
             emit("error", {"message": f"Not your turn to bid (it is P{room.bid_turn})"}); return
 
         bid_val = data.get("bid")
-        marks   = data.get("marks", 1) or 1
+        marks   = int(data.get("marks", 1) or 1)
 
         try:
             room.game.bid(pnum, bid_val, marks)
         except InvalidBidError:
-            emit("error", {"message": "Invalid bid – must beat the current high bid"}); return
+            emit("error", {"message": "Invalid bid — must beat the current high bid"}); return
 
+        room.bid_log.append({
+            "player": pnum, "name": room.names.get(pnum, f"P{pnum}"),
+            "bid": bid_val, "marks": marks,
+        })
         room.bid_turn = room.bid_turn % 4 + 1
         bids_placed   = len(room.game._bids)
 
         sio.emit("bid_placed", {
-            "player_num":     pnum,
-            "bid":            bid_val,
-            "marks":          marks,
-            "bid_turn":       room.bid_turn,
-            "bids_placed":    bids_placed,
-            "high_bid":       room.game._high_bid,
-            "high_bidder":    room.game._high_bidder,
-            "high_marks":     room.game._high_marks,
+            "player_num": pnum, "bid": bid_val, "marks": marks,
+            "bid_turn": room.bid_turn, "bids_placed": bids_placed,
+            "high_bid": room.game._high_bid,
+            "high_bidder": room.game._high_bidder,
+            "high_marks": room.game._high_marks,
             "available_bids": _compute_available_bids(room),
+            "bid_log": room.bid_log,
         }, room=room.room_id)
 
         if bids_placed == 4:
-            hb, hbid, hm = room.game._high_bidder, room.game._high_bid, room.game._high_marks
-            # Everyone passed → forced dealer bid 30
-            if hb is None:
-                hb   = room.dealer % 4 + 1
-                hbid = 30
-                hm   = 1
-                room.game.set_forced_bid(hb, hbid, hm)
+            _complete_bidding(room)
+        elif room.bid_turn in room.bots:
+            _schedule_bot(room.room_id)
+        else:
+            # Open bid modal for next human player
+            next_sid = room.sid_by_num.get(room.bid_turn)
+            if next_sid:
+                sio.emit("your_bid_turn", {
+                    "bid_turn": room.bid_turn,
+                    "available_bids": _compute_available_bids(room),
+                    "high_bid": room.game._high_bid,
+                    "high_marks": room.game._high_marks,
+                }, room=next_sid)
 
-            room.first_move = hb
-            room.play_turn  = hb
-
-            # Low bid (0) has no trump — skip trump selection and start playing
-            if hbid == 0:
-                room.phase = "playing"
-                room.trick_count = 0
-                room.game.set_trump(None)
-                sio.emit("bidding_complete", {
-                    "high_bidder": hb, "high_bid": hbid, "high_marks": hm,
-                    "state": room.get_state(),
-                }, room=room.room_id)
-                sio.emit("trump_set", {
-                    "trump": None, "first_move": room.first_move, "state": room.get_state()
-                }, room=room.room_id)
-                _push_turn(room, sio)
-            else:
-                room.phase = "trump_selection"
-                sio.emit("bidding_complete", {
-                    "high_bidder": hb, "high_bid": hbid, "high_marks": hm,
-                    "state": room.get_state(),
-                }, room=room.room_id)
-
-    # ---------- trump selection
+    # ---------- trump
 
     @sio.on("set_trump")
     def on_set_trump(data):
@@ -726,17 +992,21 @@ def create_app(test_config=None):
             emit("error", {"message": "Only the high bidder sets trump"}); return
 
         trump = data.get("trump")
-        if trump is not None and (not isinstance(trump, int) or not (0 <= trump <= 6)):
-            emit("error", {"message": "Trump must be 0–6 or null"}); return
+        # Accept 0-7 (7 = doubles trump) or None (low bid, but that's handled in bidding)
+        if trump is not None and (not isinstance(trump, int) or not (0 <= trump <= 7)):
+            emit("error", {"message": "Trump must be 0–7 (7=Doubles) or null"}); return
 
         room.game.set_trump(trump)
-        room.phase      = "playing"
+        room.phase       = "playing"
         room.trick_count = 0
 
         sio.emit("trump_set", {
-            "trump": trump, "first_move": room.first_move, "state": room.get_state()
+            "trump": trump, "first_move": room.first_move,
+            "state": room.get_state(),
         }, room=room.room_id)
-        _push_turn(room, sio)
+        _push_turn(room)
+        if room.play_turn in room.bots:
+            _schedule_bot(room.room_id)
 
     # ---------- playing
 
@@ -756,28 +1026,31 @@ def create_app(test_config=None):
 
         domino = Domino(raw)
 
-        # ---- Suit-following validation ----
+        # Suit-following validation
         trick_objs = room.game.get_trick()
         if trick_objs:
-            lead      = trick_objs[0]
-            trump     = room.game._trump
-            lead_suit = trump if (trump is not None and lead.contains(trump)) else lead.high_side(trump=trump)
-            hand      = room.game.get_hand(pnum)
+            lead  = trick_objs[0]
+            trump = room.game._trump
+            if trump is not None and lead.contains(trump):
+                lead_suit = trump
+            else:
+                lead_suit = lead.high_side(trump=trump)
+            hand = room.game.get_hand(pnum)
 
             if lead_suit == trump:
-                # Trump was led — must follow with any trump domino
                 has_suit = any(d.contains(trump) for d in hand)
                 if has_suit and not domino.contains(trump):
-                    emit("error", {"message": f"You must follow suit (trump: {lead_suit}s)"}); return
+                    suit_name = SUIT_NAMES[trump] if 0 <= trump <= 7 else str(trump)
+                    emit("error", {"message": f"Must follow trump ({suit_name})"}); return
             else:
-                # Non-trump led — only non-trump dominoes of the lead suit count
                 has_suit = any(
                     d.contains(lead_suit) and (trump is None or not d.contains(trump))
                     for d in hand
                 )
-                played_follows = domino.contains(lead_suit) and (trump is None or not domino.contains(trump))
+                played_follows = (domino.contains(lead_suit) and
+                                  (trump is None or not domino.contains(trump)))
                 if has_suit and not played_follows:
-                    emit("error", {"message": f"You must follow suit ({lead_suit}s)"}); return
+                    emit("error", {"message": f"Must follow suit ({lead_suit}s)"}); return
 
         success = room.game.play(pnum, domino)
         if not success:
@@ -790,43 +1063,43 @@ def create_app(test_config=None):
         ]
 
         sio.emit("domino_played", {
-            "player_num": pnum, "domino": raw, "trick": trick_snap
+            "player_num": pnum, "domino": raw, "trick": trick_snap,
         }, room=room.room_id)
 
         if len(trick_objs) == 4:
             winner      = room.game.get_trick_winner()
             trick_score = room.game.trick_score()
             room.game.set_winner(winner)
-
             room.last_trick_winner  = winner
             room.last_trick_dominos = [d.to_list() for d in trick_objs]
-            room.trick_count       += 1
-            room.first_move         = winner
-            room.play_turn          = winner
-
+            room.trick_count += 1
+            room.first_move  = winner
+            room.play_turn   = winner
             t1, t2 = room.game.get_team_scores()
             sio.emit("trick_complete", {
-                "winner":        winner,
-                "winner_name":   room.names.get(winner, f"P{winner}"),
-                "team":          1 if winner % 2 == 1 else 2,
-                "trick_score":   trick_score,
+                "winner": winner,
+                "winner_name": room.names.get(winner, f"P{winner}"),
+                "team": 1 if winner % 2 == 1 else 2,
+                "trick_score": trick_score,
                 "trick_dominos": room.last_trick_dominos,
-                "team1_score":   t1,
-                "team2_score":   t2,
-                "team1_total":   room.team1_total,
-                "team2_total":   room.team2_total,
-                "trick_count":   room.trick_count,
+                "team1_score": t1, "team2_score": t2,
+                "team1_total": room.team1_total,
+                "team2_total": room.team2_total,
+                "trick_count": room.trick_count,
             }, room=room.room_id)
-
             if room.trick_count == 7:
                 room.finish_hand(sio)
             else:
-                _push_turn(room, sio)
+                _push_turn(room)
+                if room.play_turn in room.bots:
+                    _schedule_bot(room.room_id, delay=1.2)
         else:
             room.play_turn = room.play_turn % 4 + 1
-            _push_turn(room, sio)
+            _push_turn(room)
+            if room.play_turn in room.bots:
+                _schedule_bot(room.room_id)
 
-    # ---------- chat (emoji only)
+    # ---------- chat (open text, max 200 chars)
 
     @sio.on("send_chat")
     def on_send_chat(data):
@@ -835,27 +1108,20 @@ def create_app(test_config=None):
             return
         room = _rooms[room_id]
         sid  = request.sid
-
-        # Identify sender
-        is_spec   = room.is_spectator(sid)
-        pnum      = room.get_player_num(sid)
+        is_spec = room.is_spectator(sid)
+        pnum    = room.get_player_num(sid)
         if pnum is None and not is_spec:
-            return  # not in room
+            return
 
-        msg = (data.get("message") or "").strip()
-        if msg not in CHAT_PHRASES and not _is_emoji_only(msg):
-            emit("error", {"message": "Chat supports emoji or quick phrases only 😊"}); return
+        msg = (data.get("message") or "").strip()[:200]
+        if not msg:
+            return
 
-        if pnum:
-            sender = room.names.get(pnum, f"P{pnum}")
-        else:
-            sender = room.spectators.get(sid, "Spectator")
-
-        entry = {"sender": sender, "msg": msg, "spectator": is_spec, "player_num": pnum}
+        sender = room.names.get(pnum, f"P{pnum}") if pnum else room.spectators.get(sid, "Spectator")
+        entry  = {"sender": sender, "msg": msg, "spectator": is_spec, "player_num": pnum}
         room.chat_history.append(entry)
         if len(room.chat_history) > MAX_CHAT:
             room.chat_history = room.chat_history[-MAX_CHAT:]
-
         sio.emit("chat_message", entry, room=room_id)
 
     # ---------- utilities
@@ -881,7 +1147,6 @@ def create_app(test_config=None):
         if room.phase not in ("hand_complete", "game_complete"):
             emit("error", {"message": "Hand is not yet complete"}); return
 
-        # If the game was over, reset cumulative scores for a fresh game
         if room.phase == "game_complete":
             room.team1_total = 0
             room.team2_total = 0
@@ -903,39 +1168,13 @@ def create_app(test_config=None):
                 "state": room.get_state(),
                 "seat_map": _SPECTATOR_SEAT_MAP,
             }, room=s)
-
-    # ------------------------------------------------------------------ helpers
-
-    def _resolve(data):
-        room_id = (data.get("room_id") or "").strip().upper()
-        if room_id not in _rooms:
-            return None, None, f"Room '{room_id}' not found"
-        room = _rooms[room_id]
-        pnum = room.get_player_num(request.sid)
-        if pnum is None:
-            return None, None, "You are not a player in this room"
-        return room, pnum, None
-
-    def _push_turn(room: GameRoom, sio: SocketIO):
-        for pnum, psid in room.sid_by_num.items():
-            is_turn = pnum == room.play_turn
-            try:
-                hand = [d.to_list() for d in room.game.get_hand(pnum)]
-            except Exception:
-                hand = []
-            payload = {
-                "hand":       hand,
-                "play_turn":  room.play_turn,
-                "action":     "play" if is_turn else "wait",
-                "seat_map":   _compute_seat_map(pnum),
-                "valid_plays": _compute_valid_plays(room, pnum) if is_turn else [],
-            }
-            sio.emit("your_turn" if is_turn else "waiting", payload, room=psid)
+        if room.bid_turn in room.bots:
+            _schedule_bot(room_id)
 
     return app, sio
 
 
 if __name__ == "__main__":
     app, sio = create_app()
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 8000))
     sio.run(app, host="0.0.0.0", port=port, debug=False, allow_unsafe_werkzeug=True)

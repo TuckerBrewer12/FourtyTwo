@@ -27,7 +27,7 @@ const STARTING_HANDS: Record<number, DominoT[]> = {
   4: [[6,5],[6,1],[6,0],[4,3],[4,2],[3,2],[1,1]],
 }
 const NAMES: Record<number, string> = { 1: 'You', 2: 'Bot East', 3: 'Partner', 4: 'Bot West' }
-const SUIT_NAMES = ['Blanks','Aces','Deuces','Treys','Fours','Fives','Sixes']
+const SUIT_NAMES = ['Blanks','Aces','Deuces','Threes','Fours','Fives','Sixes']
 
 /* ═══════════════════════════════════════════════
    STEP TYPE
