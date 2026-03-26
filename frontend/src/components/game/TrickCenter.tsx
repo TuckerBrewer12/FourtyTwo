@@ -67,25 +67,31 @@ export default function TrickCenter() {
       justifyContent: 'center',
       position: 'relative',
       minHeight: 200,
-      overflow: 'hidden',
+      overflow: 'visible',
       transition: 'box-shadow 0.6s ease',
     }}>
-      {/* Felt dot pattern */}
+      {/* Clip layer — keeps backgrounds inside rounded corners */}
       <div style={{
         position: 'absolute', inset: 0,
-        backgroundImage: 'radial-gradient(rgba(0,0,0,.1) 1.5px, transparent 1.5px)',
-        backgroundSize: '12px 12px',
-        borderRadius: 20, pointerEvents: 'none',
-      }} />
-
-      {/* Trump tint on felt */}
-      {trumpColor && (
+        borderRadius: 20, overflow: 'hidden',
+        pointerEvents: 'none',
+      }}>
+        {/* Felt dot pattern */}
         <div style={{
-          position: 'absolute', inset: 0, borderRadius: 20,
-          background: `radial-gradient(ellipse at center, ${trumpColor}1a 0%, transparent 65%)`,
-          pointerEvents: 'none', transition: 'opacity 0.8s ease',
+          position: 'absolute', inset: 0,
+          backgroundImage: 'radial-gradient(rgba(0,0,0,.1) 1.5px, transparent 1.5px)',
+          backgroundSize: '12px 12px',
         }} />
-      )}
+
+        {/* Trump tint on felt */}
+        {trumpColor && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: `radial-gradient(ellipse at center, ${trumpColor}1a 0%, transparent 65%)`,
+            transition: 'opacity 0.8s ease',
+          }} />
+        )}
+      </div>
 
       {/* Empty-table ring */}
       {trick.length === 0 && !isSweeping && (

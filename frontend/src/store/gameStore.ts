@@ -15,13 +15,6 @@ export interface Toast {
   type: 'default' | 'success' | 'error' | 'info';
 }
 
-export interface FlightDomino {
-  id: number;
-  a: number;
-  b: number;
-  fromSeat: string;
-}
-
 export interface ScorePop {
   id: number;
   pts: number;
@@ -31,7 +24,6 @@ export interface ScorePop {
 
 let toastCounter = 0;
 let biddingTimer: ReturnType<typeof setInterval> | null = null;
-let flightCounter = 0;
 let scorePopCounter = 0;
 
 // Apply persisted animation preference immediately on load
@@ -121,7 +113,6 @@ interface GameStore {
   socket: Socket | null;
 
   // ---- ANIMATION STATE ----
-  flightDominos: FlightDomino[];
   scorePops: ScorePop[];
   trickSweepSeat: string | null;   // seat name to sweep trick toward
   celebrateTeam: number | null;    // 1 or 2 = confetti for that team
@@ -188,7 +179,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   socket: null,
 
   // Animation initial state
-  flightDominos: [],
   scorePops: [],
   trickSweepSeat: null,
   celebrateTeam: null,
@@ -237,7 +227,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       handResultData: null, gameOverData: null, chatOpen: false,
       unreadChat: 0, statusMsg: 'Waiting…', pendingPlay: null, lastTrickWinner: null, wonTricksPerPlayer: {}, biddingCountdown: null,
       validPlays: [], seatMap: null,
-      flightDominos: [], scorePops: [], trickSweepSeat: null, celebrateTeam: null,
+      scorePops: [], trickSweepSeat: null, celebrateTeam: null,
       dealAnimating: false, trumpRevealSuit: null, lastTrickScore: 0, trickResult: null,
     });
     window.history.replaceState({}, '', '/');
@@ -307,7 +297,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         dealAnimating: true,
         celebrateTeam: null,
         trickSweepSeat: null,
-        flightDominos: [],
         scorePops: [],
         trumpRevealSuit: null,
         lastTrickScore: 0,
@@ -418,25 +407,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
 
     socket.on('domino_played', (d: DominoPlayedPayload) => {
-      // Trigger flying domino animation
-      const seatMap = get().seatMap;
-      if (seatMap) {
-        const seat = seatMap[d.player_num] ?? 'south';
-        const fid = ++flightCounter;
-        set(s => ({
-          flightDominos: [...s.flightDominos, {
-            id: fid,
-            a: d.domino[0],
-            b: d.domino[1],
-            fromSeat: seat,
-          }],
-        }));
-        // Remove flight domino after animation completes (500ms)
-        setTimeout(() => {
-          set(s => ({ flightDominos: s.flightDominos.filter(f => f.id !== fid) }));
-        }, 520);
-      }
-
       set(s => ({
         pendingPlay: null,
         gameState: s.gameState ? { ...s.gameState, trick: d.trick } : s.gameState,
