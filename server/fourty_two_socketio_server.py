@@ -263,9 +263,18 @@ def _bot_choose_play(room, pnum: int) -> list:
 # ---------------------------------------------------------------------------
 
 class GameRoom:
-    def __init__(self, room_id: str, game_mode: str = "points_250"):
+    def __init__(self, room_id: str, game_mode: str = "marks_7",
+                 bid_timer: int = 0, chat_mode: str = "emoji",
+                 allow_spectators: bool = True, marks_target: int = 7,
+                 nelo: bool = False, plunge: bool = False):
         self.room_id   = room_id
         self.game_mode = game_mode   # "points_250" | "marks_7"
+        self.bid_timer = bid_timer          # 0 = no timer, 5-60 seconds
+        self.chat_mode = chat_mode          # "emoji" | "text" | "off"
+        self.allow_spectators = allow_spectators
+        self.marks_target = marks_target    # custom marks to win (default 7)
+        self.nelo = nelo                    # double marks on set
+        self.plunge = plunge                # extra marks for overbidding and getting set
         self.game      = FourtyTwo()
 
         # Active players
@@ -403,8 +412,16 @@ class GameRoom:
             "tile_counts":    {p: _safe_hand_len(self.game, p) for p in range(1, 5)},
             "available_bids": _compute_available_bids(self),
             "total_tricks":   7,
-            "win_target":     250 if self.game_mode == "points_250" else 7,
+            "win_target":     250 if self.game_mode == "points_250" else self.marks_target,
             "max_bid":        42,
+            "settings": {
+                "bid_timer": self.bid_timer,
+                "chat_mode": self.chat_mode,
+                "allow_spectators": self.allow_spectators,
+                "marks_target": self.marks_target,
+                "nelo": self.nelo,
+                "plunge": self.plunge,
+            },
         }
 
         if for_player is not None:
@@ -446,17 +463,23 @@ class GameRoom:
             t1_gain = t1
             t2_gain = t2
         else:
-            # Set: bidding team gets 0; opponents get bid + their actual points
+            # Set: bidding team gets 0; opponents get the bid value
             if bid_team == 1:
                 t1_gain = 0
-                t2_gain = high_bid + opp_score
+                t2_gain = high_bid
             else:
                 t2_gain = 0
-                t1_gain = high_bid + opp_score
+                t1_gain = high_bid
 
         # --- Marks update (both modes) ---
         # BUG FIX: award high_marks marks, not just 1
         marks_awarded = max(1, high_marks)
+        # Nelo: double marks on set
+        if not made and self.nelo:
+            marks_awarded *= 2
+        # Plunge: if bid > 30 and set, extra mark
+        if not made and self.plunge and high_bid > 30:
+            marks_awarded += 1
         if made:
             if bid_team == 1:
                 self.team1_marks += marks_awarded
@@ -487,8 +510,8 @@ class GameRoom:
 
         # --- Win check ---
         if self.game_mode == "marks_7":
-            game_over = (self.team1_marks >= MARKS_TO_WIN or
-                         self.team2_marks >= MARKS_TO_WIN)
+            game_over = (self.team1_marks >= self.marks_target or
+                         self.team2_marks >= self.marks_target)
         else:
             game_over = (self.team1_total >= POINTS_TO_WIN or
                          self.team2_total >= POINTS_TO_WIN)
@@ -844,12 +867,32 @@ def create_app(test_config=None):
     @sio.on("create_room")
     def on_create_room(data):
         name      = (data.get("name") or "Player").strip() or "Player"
-        game_mode = data.get("game_mode", "points_250")
+        game_mode = data.get("game_mode", "marks_7")
         if game_mode not in ("points_250", "marks_7"):
-            game_mode = "points_250"
+            game_mode = "marks_7"
+
+        bid_timer = data.get("bid_timer", 0)
+        if not isinstance(bid_timer, int) or bid_timer < 0 or bid_timer > 60:
+            bid_timer = 0
+        if bid_timer > 0 and bid_timer < 5:
+            bid_timer = 5
+
+        chat_mode = data.get("chat_mode", "emoji")
+        if chat_mode not in ("emoji", "text", "off"):
+            chat_mode = "emoji"
+
+        allow_spectators = bool(data.get("allow_spectators", True))
+        marks_target = data.get("marks_target", 7)
+        if not isinstance(marks_target, int) or marks_target < 1 or marks_target > 21:
+            marks_target = 7
+
+        nelo = bool(data.get("nelo", False))
+        plunge = bool(data.get("plunge", False))
 
         room_id = _unique_room_id()
-        room    = GameRoom(room_id, game_mode)
+        room    = GameRoom(room_id, game_mode, bid_timer=bid_timer, chat_mode=chat_mode,
+                           allow_spectators=allow_spectators, marks_target=marks_target,
+                           nelo=nelo, plunge=plunge)
         _rooms[room_id] = room
 
         pnum, _ = room.add_player(request.sid, name)
@@ -859,6 +902,14 @@ def create_app(test_config=None):
         emit("room_joined", {
             "room_id": room_id, "player_num": pnum, "name": name,
             "game_mode": game_mode, "state": room.get_state(pnum),
+            "settings": {
+                "bid_timer": bid_timer,
+                "chat_mode": chat_mode,
+                "allow_spectators": allow_spectators,
+                "marks_target": marks_target,
+                "nelo": nelo,
+                "plunge": plunge,
+            },
         })
 
     @sio.on("join_game")
@@ -918,6 +969,10 @@ def create_app(test_config=None):
             emit("error", {"message": f"Room '{room_id}' not found"}); return
 
         room = _rooms[room_id]
+        if not room.allow_spectators:
+            emit("error", {"message": "Spectators not allowed in this room"})
+            return
+
         room.add_spectator(request.sid, name)
         sio_join_room(room_id)
 
@@ -1107,6 +1162,11 @@ def create_app(test_config=None):
         if room_id not in _rooms:
             return
         room = _rooms[room_id]
+
+        # Chat mode check
+        if room.chat_mode == "off":
+            return
+
         sid  = request.sid
         is_spec = room.is_spectator(sid)
         pnum    = room.get_player_num(sid)
@@ -1115,6 +1175,10 @@ def create_app(test_config=None):
 
         msg = (data.get("message") or "").strip()[:200]
         if not msg:
+            return
+
+        # Emoji mode: reject if message is too long (emoji-only should be short)
+        if room.chat_mode == "emoji" and len(msg) > 20:
             return
 
         sender = room.names.get(pnum, f"P{pnum}") if pnum else room.spectators.get(sid, "Spectator")

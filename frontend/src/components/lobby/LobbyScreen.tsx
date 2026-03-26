@@ -5,15 +5,27 @@ import type { GameMode } from '../../types/game'
 
 const MODE_INFO: Record<GameMode, string> = {
   points_250: 'Teams accumulate points hand by hand. First to 250 wins. Failed bids score zero and gift opponents extra points.',
-  marks_7:    'Win a hand to earn 1 mark. First team to 7 marks wins the match.',
+  marks_7:    'Win a hand to earn marks. First team to reach the target wins the match.',
 }
+
+type ChatMode = 'emoji' | 'text' | 'off'
 
 export default function LobbyScreen() {
   const [tab, setTab]       = useState<'create' | 'join'>('create')
   const [nameC, setNameC]   = useState('')
   const [nameJ, setNameJ]   = useState('')
   const [roomCode, setRoom] = useState('')
-  const [mode, setMode]     = useState<GameMode>('points_250')
+  const [mode, setMode]     = useState<GameMode>('marks_7')
+
+  // Settings
+  const [bidTimerOn, setBidTimerOn]   = useState(false)
+  const [bidTimerSec, setBidTimerSec] = useState(15)
+  const [chatMode, setChatMode]       = useState<ChatMode>('emoji')
+  const [allowSpectators, setAllowSpectators] = useState(true)
+  const [marksTarget, setMarksTarget] = useState(7)
+  const [nelo, setNelo]     = useState(false)
+  const [plunge, setPlunge] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const { emitCreateRoom, emitJoinGame, addToast } = useGameStore(useShallow(s => ({
     emitCreateRoom: s.emitCreateRoom,
@@ -25,7 +37,14 @@ export default function LobbyScreen() {
   function create() {
     const n = nameC.trim()
     if (!n) { addToast('Enter your name', 'error'); return }
-    emitCreateRoom(n, mode)
+    emitCreateRoom(n, mode, {
+      bid_timer: bidTimerOn ? bidTimerSec : 0,
+      chat_mode: chatMode,
+      allow_spectators: allowSpectators,
+      marks_target: mode === 'marks_7' ? marksTarget : 250,
+      nelo,
+      plunge,
+    })
   }
 
   function join() {
@@ -42,8 +61,9 @@ export default function LobbyScreen() {
       background: 'var(--bg)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '1rem',
+      overflowY: 'auto',
     }}>
-      <div style={{ width: '100%', maxWidth: 400 }}>
+      <div style={{ width: '100%', maxWidth: 420 }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
           <div style={{
@@ -88,29 +108,131 @@ export default function LobbyScreen() {
                   onKeyDown={e => e.key === 'Enter' && create()}
                   placeholder="e.g. Texas Pete" maxLength={16} style={inputStyle} />
               </Field>
+
               <Field label="Game Mode">
-                  <div style={{ display: 'flex', gap: '.4rem' }}>
-                    {(['points_250', 'marks_7'] as GameMode[]).map(m => (
-                      <button key={m} onClick={() => setMode(m)} style={{
-                        padding: '.4rem .9rem', borderRadius: '20px', fontWeight: 600,
-                        fontSize: '.82rem', cursor: 'pointer',
-                        border: `1.5px solid ${mode === m ? 'var(--accent)' : 'var(--border)'}`,
-                        background: mode === m ? 'var(--accent-light)' : 'transparent',
-                        color: mode === m ? 'var(--accent)' : 'var(--text-muted)',
-                      }}>
-                        {m === 'points_250' ? '250 Points' : '7 Marks'}
-                      </button>
-                    ))}
-                  </div>
-                  <div style={{
-                    marginTop: '.5rem', background: 'var(--bg)', borderRadius: 'var(--radius)',
-                    padding: '.7rem', fontSize: '.8rem', color: 'var(--text-muted)', lineHeight: 1.55,
-                  }}>
-                    <strong style={{ color: 'var(--accent)' }}>
-                      {mode === 'points_250' ? '250 Points' : '7 Marks'}
-                    </strong>{' — '}{MODE_INFO[mode]}
+                <div style={{ display: 'flex', gap: '.4rem' }}>
+                  {(['marks_7', 'points_250'] as GameMode[]).map(m => (
+                    <button key={m} onClick={() => setMode(m)} style={{
+                      padding: '.4rem .9rem', borderRadius: '20px', fontWeight: 600,
+                      fontSize: '.82rem', cursor: 'pointer',
+                      border: `1.5px solid ${mode === m ? 'var(--accent)' : 'var(--border)'}`,
+                      background: mode === m ? 'var(--accent-light)' : 'transparent',
+                      color: mode === m ? 'var(--accent)' : 'var(--text-muted)',
+                    }}>
+                      {m === 'points_250' ? '250 Points' : `${marksTarget} Marks`}
+                    </button>
+                  ))}
+                </div>
+                <div style={{
+                  marginTop: '.5rem', background: 'var(--bg)', borderRadius: 'var(--radius)',
+                  padding: '.7rem', fontSize: '.8rem', color: 'var(--text-muted)', lineHeight: 1.55,
+                }}>
+                  <strong style={{ color: 'var(--accent)' }}>
+                    {mode === 'points_250' ? '250 Points' : `${marksTarget} Marks`}
+                  </strong>{' — '}{MODE_INFO[mode]}
+                </div>
+              </Field>
+
+              {/* Marks target slider — only for marks mode */}
+              {mode === 'marks_7' && (
+                <Field label={`Marks to Win: ${marksTarget}`}>
+                  <input type="range" min={1} max={21} value={marksTarget}
+                    onChange={e => setMarksTarget(Number(e.target.value))}
+                    style={{ width: '100%', accentColor: 'var(--accent)' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.7rem', color: 'var(--text-faint)' }}>
+                    <span>1</span><span>7 (default)</span><span>21</span>
                   </div>
                 </Field>
+              )}
+
+              {/* Bid Timer */}
+              <Field label="Bid Timer">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
+                  <Toggle on={bidTimerOn} onToggle={() => setBidTimerOn(!bidTimerOn)} />
+                  <span style={{ fontSize: '.82rem', color: bidTimerOn ? 'var(--text)' : 'var(--text-faint)' }}>
+                    {bidTimerOn ? `${bidTimerSec}s per bid` : 'No time limit'}
+                  </span>
+                </div>
+                {bidTimerOn && (
+                  <div style={{ marginTop: '.4rem' }}>
+                    <input type="range" min={5} max={60} step={5} value={bidTimerSec}
+                      onChange={e => setBidTimerSec(Number(e.target.value))}
+                      style={{ width: '100%', accentColor: 'var(--accent)' }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.7rem', color: 'var(--text-faint)' }}>
+                      <span>5s</span><span>30s</span><span>60s</span>
+                    </div>
+                  </div>
+                )}
+              </Field>
+
+              {/* Chat Mode */}
+              <Field label="Chat">
+                <div style={{ display: 'flex', gap: '.35rem' }}>
+                  {([['emoji', 'Emojis Only'], ['text', 'Full Text'], ['off', 'Off']] as [ChatMode, string][]).map(([v, label]) => (
+                    <button key={v} onClick={() => setChatMode(v)} style={{
+                      padding: '.35rem .75rem', borderRadius: '20px', fontWeight: 600,
+                      fontSize: '.78rem', cursor: 'pointer',
+                      border: `1.5px solid ${chatMode === v ? 'var(--accent)' : 'var(--border)'}`,
+                      background: chatMode === v ? 'var(--accent-light)' : 'transparent',
+                      color: chatMode === v ? 'var(--accent)' : 'var(--text-muted)',
+                    }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
+              {/* Spectators toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '.82rem', fontWeight: 600, color: 'var(--text-muted)' }}>Allow Spectators</span>
+                <Toggle on={allowSpectators} onToggle={() => setAllowSpectators(!allowSpectators)} />
+              </div>
+
+              {/* Advanced rules section */}
+              <button onClick={() => setShowAdvanced(!showAdvanced)} style={{
+                display: 'flex', alignItems: 'center', gap: '.4rem',
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: '.78rem', fontWeight: 700, color: 'var(--text-muted)',
+                padding: '.2rem 0', textTransform: 'uppercase', letterSpacing: '.05em',
+              }}>
+                <span style={{ transform: showAdvanced ? 'rotate(90deg)' : 'none', transition: 'transform .2s', display: 'inline-block' }}>
+                  ▸
+                </span>
+                House Rules
+              </button>
+
+              {showAdvanced && (
+                <div style={{
+                  display: 'flex', flexDirection: 'column', gap: '.75rem',
+                  background: 'var(--bg)', borderRadius: 'var(--radius)',
+                  padding: '.75rem', border: '1px solid var(--border)',
+                }}>
+                  {/* Nelo */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.25rem' }}>
+                      <span style={{ fontSize: '.82rem', fontWeight: 700, color: 'var(--text)' }}>Nelo</span>
+                      <Toggle on={nelo} onToggle={() => setNelo(!nelo)} />
+                    </div>
+                    <p style={{ fontSize: '.72rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                      When the bidding team gets set, the penalty marks are <strong>doubled</strong>. High risk, high stakes.
+                    </p>
+                  </div>
+
+                  <div style={{ height: 1, background: 'var(--border)' }} />
+
+                  {/* Plunge */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.25rem' }}>
+                      <span style={{ fontSize: '.82rem', fontWeight: 700, color: 'var(--text)' }}>Plunge</span>
+                      <Toggle on={plunge} onToggle={() => setPlunge(!plunge)} />
+                    </div>
+                    <p style={{ fontSize: '.72rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                      Bid over 30 and get set? That's an <strong>extra mark</strong> penalty on top. Punishes overbidding.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <Btn onClick={create}>Create Game</Btn>
               <GhostBtn onClick={openRules}>📖 Rules</GhostBtn>
             </div>
@@ -159,6 +281,28 @@ export default function LobbyScreen() {
         </button>
       </div>
     </div>
+  )
+}
+
+/* ---- Toggle Switch ---- */
+function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <button onClick={onToggle} style={{
+      width: 38, height: 22, borderRadius: 11, padding: 2,
+      background: on ? 'var(--accent)' : 'var(--border)',
+      border: 'none', cursor: 'pointer',
+      transition: 'background .2s ease',
+      display: 'flex', alignItems: 'center',
+      flexShrink: 0,
+    }}>
+      <div style={{
+        width: 18, height: 18, borderRadius: '50%',
+        background: '#fff',
+        boxShadow: '0 1px 3px rgba(0,0,0,.2)',
+        transition: 'transform .2s ease',
+        transform: on ? 'translateX(16px)' : 'translateX(0)',
+      }} />
+    </button>
   )
 }
 

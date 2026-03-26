@@ -9,6 +9,15 @@ import type {
   TrickCompletePayload, HandCompletePayload, GameAbandonedPayload,
 } from '../types/game'
 
+export interface RoomSettings {
+  bid_timer: number;
+  chat_mode: 'emoji' | 'text' | 'off';
+  allow_spectators: boolean;
+  marks_target: number;
+  nelo: boolean;
+  plunge: boolean;
+}
+
 export interface Toast {
   id: number;
   msg: string;
@@ -136,7 +145,7 @@ interface GameStore {
   initSocket: () => void;
 
   // Emit helpers
-  emitCreateRoom: (name: string, mode: GameMode) => void;
+  emitCreateRoom: (name: string, mode: GameMode, settings?: RoomSettings) => void;
   emitJoinGame: (name: string, roomId: string) => void;
   emitJoinSpectator: (name: string, roomId: string) => void;
   emitBid: (bid: number, marks: number) => void;
@@ -544,10 +553,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  emitCreateRoom: (name, mode) => {
+  emitCreateRoom: (name, mode, settings) => {
     set({ myName: name });
     get().initSocket();
-    get().socket?.emit('create_room', { name, game_mode: mode });
+    get().socket?.emit('create_room', {
+      name,
+      game_mode: mode,
+      ...(settings ?? {}),
+    });
   },
 
   emitJoinGame: (name, roomId) => {
