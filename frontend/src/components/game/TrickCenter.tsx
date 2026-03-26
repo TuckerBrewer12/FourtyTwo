@@ -115,16 +115,19 @@ export default function TrickCenter() {
           {trick.map((item, i) => {
             const seat = pnumToSeat[item.player] ?? 'south'
             const animName = SEAT_ANIM[seat] ?? 'trickTileIn'
-            // First tiles in trick use short delay; latest tile gets 180ms delay
-            // to sync with the flight animation so it doesn't teleport
+            // Already-placed tiles: no delay. The LATEST tile (just played)
+            // starts immediately — the slide covers the full distance from
+            // the player's area so there's no gap/teleport.
             const isLatest = i === trick.length - 1
-            const delay = isLatest ? 180 : 0
 
             return (
               <div
                 key={`t-${item.player}`}
                 style={{
-                  animation: `${animName} 0.52s cubic-bezier(0.22, 0.61, 0.36, 1) ${delay}ms both`,
+                  // 0.6s for the full-screen slide; earlier tiles already resting
+                  animation: isLatest
+                    ? `${animName} 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) both`
+                    : `trickTileIn 0.35s ease both`,
                   filter: 'drop-shadow(0 8px 18px rgba(0,0,0,.30))',
                 }}
               >

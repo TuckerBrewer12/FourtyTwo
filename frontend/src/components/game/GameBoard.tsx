@@ -5,7 +5,7 @@ import ScorePanel from './ScorePanel'
 import TrickCenter from './TrickCenter'
 import PlayerZone from './PlayerZone'
 import HandArea from './HandArea'
-import FlightLayer from './FlightLayer'
+// FlightLayer removed — directional slide-in on TrickCenter handles it now
 import ConfettiLayer from './ConfettiLayer'
 import TrickResultBadge from './TrickResultBadge'
 
@@ -274,8 +274,9 @@ export default function GameBoard() {
 
       {/* === ANIMATION LAYERS === */}
 
-      {/* Flying domino overlay */}
-      <FlightLayer />
+      {/* FlightLayer removed — directional slide-in on TrickCenter
+          now handles the full animation from player seat to center.
+          Keeping the import so the file isn't orphaned. */}
 
       {/* Confetti / score pop layer */}
       <ConfettiLayer />

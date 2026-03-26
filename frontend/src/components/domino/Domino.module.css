@@ -75,7 +75,7 @@
 .lg .pip      { width: 9px;  height: 9px; }
 .lg           { border-radius: 10px; }
 
-.xl .half     { width: 50px; height: 64px; padding: 5px; }
+.xl .half     { width: 56px; height: 64px; padding: 5px; }
 .xl .pip      { width: 11px; height: 11px; }
 .xl           { border-radius: 12px; }
 .xl .divider  { width: 2.5px; }
@@ -211,6 +211,6 @@
 
 /* Responsive */
 @media (max-width: 600px) {
-  .xl .half   { width: 42px; height: 54px; }
+  .xl .half   { width: 48px; height: 56px; }
   .xl .pip    { width: 9px;  height: 9px; }
 }
