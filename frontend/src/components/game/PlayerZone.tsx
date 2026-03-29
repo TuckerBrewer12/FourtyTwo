@@ -1,5 +1,6 @@
 import { useGameStore } from '../../store/gameStore'
 import { useShallow } from 'zustand/react/shallow'
+import { useIsMobile } from '../../hooks/useIsMobile'
 
 interface PlayerZoneProps {
   seat?: 'north' | 'south' | 'east' | 'west';
@@ -71,6 +72,7 @@ function TilePyramid({ count, sideways }: { count: number; sideways?: boolean })
 }
 
 export default function PlayerZone({ seat, pnum, vertical }: PlayerZoneProps) {
+  const isMobile = useIsMobile()
   const { gameState, myPNum, isSpectator, myHand } = useGameStore(useShallow(s => ({
     gameState:   s.gameState,
     myPNum:      s.myPNum,
@@ -107,10 +109,10 @@ export default function PlayerZone({ seat, pnum, vertical }: PlayerZoneProps) {
     boxShadow: isActive
       ? 'none'  // overridden by animation
       : 'var(--shadow-neu-sm)',
-    padding: '.38rem .85rem',
+    padding: isMobile ? '.3rem .65rem' : '.38rem .85rem',
     display: 'flex',
     alignItems: 'center',
-    gap: '.4rem',
+    gap: isMobile ? '.3rem' : '.4rem',
     whiteSpace: 'nowrap',
     flexShrink: 0,
     border: isActive
@@ -152,7 +154,7 @@ export default function PlayerZone({ seat, pnum, vertical }: PlayerZoneProps) {
 
       {/* Status dot */}
       <span style={{
-        width: 8, height: 8, borderRadius: '50%',
+        width: isMobile ? 6 : 8, height: isMobile ? 6 : 8, borderRadius: '50%',
         background: dotColor,
         flexShrink: 0,
         animation: isActive ? 'activeDot 1.8s ease-in-out infinite' : 'none',
@@ -164,7 +166,7 @@ export default function PlayerZone({ seat, pnum, vertical }: PlayerZoneProps) {
       {/* Team color bar */}
       {pnumTeam && (
         <span style={{
-          width: 3, height: 14, borderRadius: 2,
+          width: 2, height: isMobile ? 11 : 14, borderRadius: 2,
           background: teamColor,
           flexShrink: 0,
           opacity: 0.6,
@@ -174,7 +176,7 @@ export default function PlayerZone({ seat, pnum, vertical }: PlayerZoneProps) {
       )}
 
       <span style={{
-        fontSize: '.88rem',
+        fontSize: isMobile ? '.72rem' : '.88rem',
         fontWeight: isActive ? 800 : 700,
         letterSpacing: '.05em',
         textTransform: 'uppercase',
@@ -187,7 +189,7 @@ export default function PlayerZone({ seat, pnum, vertical }: PlayerZoneProps) {
       </span>
 
       {/* Active indicator */}
-      {isActive && (
+      {isActive && !isMobile && (
         <span style={{
           fontSize: '.65rem',
           background: 'var(--success)',
@@ -214,8 +216,8 @@ export default function PlayerZone({ seat, pnum, vertical }: PlayerZoneProps) {
         display: 'flex',
         flexDirection: 'row',
         alignItems: 'center',
-        gap: '.4rem',
-        padding: '.4rem .25rem',
+        gap: isMobile ? '.25rem' : '.4rem',
+        padding: isMobile ? '.25rem .15rem' : '.4rem .25rem',
       }}>
         {isWest && namePill}
         {!isMe && tileCount > 0 && <TilePyramid count={tileCount} sideways />}
@@ -230,8 +232,8 @@ export default function PlayerZone({ seat, pnum, vertical }: PlayerZoneProps) {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      gap: '.4rem',
-      padding: '.4rem .5rem',
+      gap: isMobile ? '.25rem' : '.4rem',
+      padding: isMobile ? '.25rem .35rem' : '.4rem .5rem',
     }}>
       <div style={namePillStyle}>
         {/* Active shimmer */}
@@ -258,7 +260,7 @@ export default function PlayerZone({ seat, pnum, vertical }: PlayerZoneProps) {
         )}
 
         <span style={{
-          width: 8, height: 8, borderRadius: '50%',
+          width: isMobile ? 6 : 8, height: isMobile ? 6 : 8, borderRadius: '50%',
           background: dotColor,
           flexShrink: 0,
           animation: isActive ? 'activeDot 1.8s ease-in-out infinite' : 'none',
@@ -269,7 +271,7 @@ export default function PlayerZone({ seat, pnum, vertical }: PlayerZoneProps) {
 
         {pnumTeam && (
           <span style={{
-            width: 3, height: 14, borderRadius: 2,
+            width: 2, height: isMobile ? 11 : 14, borderRadius: 2,
             background: teamColor,
             flexShrink: 0,
             opacity: 0.6,
@@ -279,7 +281,7 @@ export default function PlayerZone({ seat, pnum, vertical }: PlayerZoneProps) {
         )}
 
         <span style={{
-          fontSize: '.88rem',
+          fontSize: isMobile ? '.72rem' : '.88rem',
           fontWeight: isActive ? 800 : 700,
           letterSpacing: '.05em',
           textTransform: 'uppercase',
@@ -291,7 +293,7 @@ export default function PlayerZone({ seat, pnum, vertical }: PlayerZoneProps) {
           {displayName}
         </span>
 
-        {isActive && (
+        {isActive && !isMobile && (
           <span style={{
             fontSize: '.65rem',
             background: 'var(--success)',

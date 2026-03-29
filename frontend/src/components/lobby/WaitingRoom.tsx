@@ -97,6 +97,27 @@ export default function WaitingRoom() {
             </div>
           </div>
 
+          {/* Native share button */}
+          {typeof navigator.share === 'function' && (
+            <button onClick={() => {
+              navigator.share({
+                title: '42 — Texas Dominos',
+                text: `Join my game of 42! Room code: ${myRoom}`,
+                url: inviteUrl,
+              }).catch(() => {})
+            }} style={{
+              width: '100%', padding: '.7rem',
+              background: 'linear-gradient(135deg, var(--accent), #008c73)',
+              color: '#fff', borderRadius: 'var(--radius)',
+              fontWeight: 700, fontSize: '.88rem',
+              border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.4rem',
+              boxShadow: '0 4px 16px rgba(0,109,91,.25)',
+            }}>
+              📤 Share Invite Link
+            </button>
+          )}
+
           {/* Player seats */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.6rem' }}>
             {[1, 2, 3, 4].map(p => {

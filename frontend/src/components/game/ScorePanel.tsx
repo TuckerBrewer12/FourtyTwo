@@ -1,9 +1,12 @@
 import { useGameStore } from '../../store/gameStore'
 import { useShallow } from 'zustand/react/shallow'
+import { useIsMobile } from '../../hooks/useIsMobile'
 
 const SUIT_NAMES = ['Blanks','Aces','Deuces','Threes','Fours','Fives','Sixes','Doubles']
 
 export default function ScorePanel() {
+  const isMobile = useIsMobile()
+  if (isMobile) return null
   const { gameState, myPNum, isSpectator, wonTricksPerPlayer } = useGameStore(useShallow(s => ({
     gameState:          s.gameState,
     myPNum:             s.myPNum,

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useGameStore } from '../../store/gameStore'
 import { useShallow } from 'zustand/react/shallow'
+import { useIsMobile } from '../../hooks/useIsMobile'
 
 const SUIT_NAMES = ['Blanks','Aces','Deuces','Threes','Fours','Fives','Sixes','Doubles']
 const SUIT_ICONS = ['⬜','🔵','🟢','🟡','🟣','🔴','🔷','♟']
@@ -23,6 +24,7 @@ function useClock() {
 }
 
 export default function ScoreHeader() {
+  const isMobile = useIsMobile()
   const { gameState, myPNum } = useGameStore(useShallow(s => ({
     gameState: s.gameState,
     myPNum: s.myPNum,
@@ -62,11 +64,13 @@ export default function ScoreHeader() {
     if (isMarksMode) {
       const myMarks = myTeam === 1 ? (gs.team1_marks ?? 0) : (gs.team2_marks ?? 0)
       const remaining = Math.max(0, winTarget - myMarks)
-      leftToWin = remaining === 1 ? '1 mark to win' : `${remaining} marks to win`
+      leftToWin = isMobile
+        ? (remaining === 1 ? '1m left' : `${remaining}m left`)
+        : (remaining === 1 ? '1 mark to win' : `${remaining} marks to win`)
     } else {
       const myTotal = myTeam === 1 ? (gs.team1_total ?? 0) : (gs.team2_total ?? 0)
       const remaining = Math.max(0, winTarget - myTotal)
-      leftToWin = `${remaining} pts to win`
+      leftToWin = isMobile ? `${remaining}p left` : `${remaining} pts to win`
     }
   }
 
@@ -84,25 +88,25 @@ export default function ScoreHeader() {
     <div style={{
       background: 'var(--surface)',
       borderBottom: '1px solid var(--border)',
-      height: 52,
+      height: isMobile ? 44 : 52,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      padding: '0 1.25rem',
+      padding: isMobile ? '0 0.75rem' : '0 1.25rem',
       zIndex: 20,
       position: 'relative',
       flexShrink: 0,
     }}>
       {/* Left: Brand + overall game score */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '.35rem' : '.6rem', minWidth: 0 }}>
         <span style={{
-          fontWeight: 800, fontSize: '.95rem',
+          fontWeight: 800, fontSize: isMobile ? '.78rem' : '.95rem',
           color: 'var(--accent)', letterSpacing: '-.01em',
           flexShrink: 0,
         }}>
-          FortyTwo
+          {isMobile ? '42' : 'FortyTwo'}
         </span>
-        {gameScoreLabel && (
+        {gameScoreLabel && !isMobile && (
           <>
             <Dot />
             <span style={{
@@ -124,7 +128,7 @@ export default function ScoreHeader() {
 
       {/* Center info */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: '.75rem',
+        display: isMobile ? 'none' : 'flex', alignItems: 'center', gap: '.75rem',
         position: 'absolute', left: '50%', transform: 'translateX(-50%)',
         maxWidth: '50vw', overflow: 'hidden',
       }}>
@@ -182,14 +186,14 @@ export default function ScoreHeader() {
       </div>
 
       {/* Right: "left to win" + icons */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '.35rem' : '.5rem' }}>
         {leftToWin && (
           <span style={{
-            fontSize: '.68rem', fontWeight: 700,
+            fontSize: isMobile ? '.6rem' : '.68rem', fontWeight: 700,
             color: 'var(--accent)',
             whiteSpace: 'nowrap',
             background: 'var(--accent-light)',
-            padding: '.15rem .5rem',
+            padding: isMobile ? '.1rem .35rem' : '.15rem .5rem',
             borderRadius: 'var(--radius-pill)',
             border: '1px solid var(--accent)',
             letterSpacing: '.01em',
@@ -200,26 +204,30 @@ export default function ScoreHeader() {
         <button
           onClick={() => useGameStore.setState({ settingsModalOpen: true })}
           style={{
-            width: 36, height: 36, borderRadius: '50%',
+            width: isMobile ? 32 : 36, height: isMobile ? 32 : 36, borderRadius: '50%',
             background: 'var(--surface-soft)',
             border: '1px solid var(--border)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '1rem', cursor: 'pointer',
+            fontSize: isMobile ? '.8rem' : '1rem', cursor: 'pointer',
             boxShadow: 'var(--shadow-neu-sm)',
+            flexShrink: 0,
           }}
           title="Settings"
         >
           ⚙
         </button>
-        <div style={{
-          width: 36, height: 36, borderRadius: '50%',
-          background: 'var(--accent)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '.85rem', color: '#fff', fontWeight: 700,
-          boxShadow: '0 2px 8px rgba(0,109,91,.3)',
-        }}>
-          42
-        </div>
+        {!isMobile && (
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: 'var(--accent)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '.85rem', color: '#fff', fontWeight: 700,
+            boxShadow: '0 2px 8px rgba(0,109,91,.3)',
+            flexShrink: 0,
+          }}>
+            42
+          </div>
+        )}
       </div>
     </div>
   )

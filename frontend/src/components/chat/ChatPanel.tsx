@@ -13,6 +13,7 @@ export default function ChatPanel() {
     setChatOpen: s.setChatOpen,
   })))
 
+  const chatMode = gameState?.settings?.chat_mode ?? 'emoji'
   const [msg, setMsg] = useState('')
   const msgsRef = useRef<HTMLDivElement>(null)
 
@@ -33,6 +34,7 @@ export default function ChatPanel() {
   }
 
   const history = gameState?.chat_history ?? []
+  const allowText = chatMode === 'text'
 
   return (
     <div style={{
@@ -62,7 +64,6 @@ export default function ChatPanel() {
         display: 'flex', flexDirection: 'column', gap: '.35rem',
       }}>
         {history.map((m, i) => {
-          // Detect if message is purely emoji/short reaction vs full text
           const isShortEmoji = m.msg.length <= 4 && /^\p{Emoji}/u.test(m.msg)
           return (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '.05rem', animation: 'fadeIn .15s ease' }}>
@@ -80,12 +81,12 @@ export default function ChatPanel() {
         })}
       </div>
 
-      {/* Quick reactions */}
+      {/* Quick reactions — always shown (emoji mode + text mode) */}
       <div style={{ padding: '.5rem .75rem', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{ fontSize: '.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.3rem' }}>
           Quick Reactions
         </div>
-        <div style={{ display: 'flex', gap: '.25rem', flexWrap: 'wrap', marginBottom: '.25rem' }}>
+        <div style={{ display: 'flex', gap: '.25rem', flexWrap: 'wrap', marginBottom: allowText ? '.25rem' : 0 }}>
           {QUICK_EMOJI.map(e => (
             <button key={e} onClick={() => sendQuick(e)} style={{
               fontSize: '1.2rem', lineHeight: 1, padding: '.2rem .3rem',
@@ -94,40 +95,45 @@ export default function ChatPanel() {
             }}>{e}</button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: '.25rem', flexWrap: 'wrap' }}>
-          {QUICK_PHRASES.map(p => (
-            <button key={p} onClick={() => sendQuick(p)} style={{
-              fontSize: '.7rem', fontWeight: 600, padding: '.2rem .5rem',
-              background: 'var(--bg)', border: '1px solid var(--border)',
-              borderRadius: '20px', cursor: 'pointer', color: 'var(--text-muted)',
-              whiteSpace: 'nowrap',
-            }}>{p}</button>
-          ))}
-        </div>
+        {/* Quick phrases — only in text mode */}
+        {allowText && (
+          <div style={{ display: 'flex', gap: '.25rem', flexWrap: 'wrap' }}>
+            {QUICK_PHRASES.map(p => (
+              <button key={p} onClick={() => sendQuick(p)} style={{
+                fontSize: '.7rem', fontWeight: 600, padding: '.2rem .5rem',
+                background: 'var(--bg)', border: '1px solid var(--border)',
+                borderRadius: '20px', cursor: 'pointer', color: 'var(--text-muted)',
+                whiteSpace: 'nowrap',
+              }}>{p}</button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Input */}
-      <div style={{ padding: '.6rem .75rem', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
-        <div style={{ display: 'flex', gap: '.4rem' }}>
-          <input
-            value={msg}
-            onChange={e => setMsg(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && send()}
-            placeholder="Say something… 😊"
-            maxLength={200}
-            style={{
-              flex: 1, background: 'var(--bg)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-sm)', padding: '.45rem .6rem',
-              fontSize: '.88rem', color: 'var(--text)', outline: 'none', fontFamily: 'inherit',
-            }}
-          />
-          <button onClick={send} style={{
-            background: 'var(--accent)', color: '#fff', padding: '.45rem .8rem',
-            borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: '.82rem',
-            border: 'none', cursor: 'pointer',
-          }}>Send</button>
+      {/* Text input — only in text mode */}
+      {allowText && (
+        <div style={{ padding: '.6rem .75rem', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: '.4rem' }}>
+            <input
+              value={msg}
+              onChange={e => setMsg(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && send()}
+              placeholder="Say something…"
+              maxLength={200}
+              style={{
+                flex: 1, background: 'var(--bg)', border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)', padding: '.45rem .6rem',
+                fontSize: '.88rem', color: 'var(--text)', outline: 'none', fontFamily: 'inherit',
+              }}
+            />
+            <button onClick={send} style={{
+              background: 'var(--accent)', color: '#fff', padding: '.45rem .8rem',
+              borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: '.82rem',
+              border: 'none', cursor: 'pointer',
+            }}>Send</button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

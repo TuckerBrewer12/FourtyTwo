@@ -18,6 +18,8 @@ import SettingsModal   from './components/modals/SettingsModal'
 import ChatPanel  from './components/chat/ChatPanel'
 import ChatToggle from './components/chat/ChatToggle'
 import ToastStack from './components/shared/Toast'
+import SplashScreen from './components/splash/SplashScreen'
+import ConnectionBanner from './components/shared/ConnectionBanner'
 
 export default function App() {
   const currentScreen = useGameStore(s => s.currentScreen)
@@ -78,6 +80,8 @@ export default function App() {
       {isGame && <ChatToggle />}
 
       <ToastStack />
+      <SplashScreen />
+      <ConnectionBanner />
     </>
   )
 }

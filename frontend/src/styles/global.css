@@ -436,6 +436,13 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after {
 }
 
 /* =============================================
+   MOBILE RESPONSIVE
+   ============================================= */
+@media (max-width: 600px) {
+  body { font-size: 13px; }
+}
+
+/* =============================================
    TRICK INDICATOR RING (existing trick in center)
    ============================================= */
 @keyframes trickRingPulse {

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { io, Socket } from 'socket.io-client'
+import { playSound } from '../audio/sounds'
 import type {
   Screen, GameState, GameMode, Domino, SeatMap,
   RoomJoinedPayload, PlayerJoinedPayload, RoomFullPayload,
@@ -8,6 +9,15 @@ import type {
   YourTurnPayload, WaitingPayload, DominoPlayedPayload,
   TrickCompletePayload, HandCompletePayload, GameAbandonedPayload,
 } from '../types/game'
+
+export interface RoomSettings {
+  bid_timer: number;
+  chat_mode: 'emoji' | 'text' | 'off';
+  allow_spectators: boolean;
+  marks_target: number;
+  nelo: boolean;
+  plunge: boolean;
+}
 
 export interface Toast {
   id: number;
@@ -39,12 +49,14 @@ interface PersistedSettings {
   showCountMarkers: boolean;
   richAnimations: boolean;
   trickBadgeColors: boolean;
+  soundEnabled: boolean;
 }
 
 const DEFAULT_SETTINGS: PersistedSettings = {
   showCountMarkers: true,
   richAnimations: true,
   trickBadgeColors: true,
+  soundEnabled: true,
 };
 
 function loadSettings(): PersistedSettings {
@@ -86,10 +98,14 @@ interface GameStore {
   validPlays: Domino[];
   seatMap: SeatMap | null;
 
+  // Connection
+  connectionStatus: 'connected' | 'reconnecting' | 'disconnected';
+
   // Settings
   showCountMarkers: boolean;
   richAnimations: boolean;
   trickBadgeColors: boolean;
+  soundEnabled: boolean;
   settingsModalOpen: boolean;
 
   // Modal visibility
@@ -121,7 +137,7 @@ interface GameStore {
   lastTrickScore: number;          // most recent trick score for display
 
   // ---- TRICK RESULT BADGE ----
-  trickResult: { winnerName: string; dominos: number[][]; score: number } | null;
+  trickResult: { winnerName: string; dominos: number[][]; score: number; exiting: boolean } | null;
 
   // ---- Actions ----
   setScreen: (s: Screen) => void;
@@ -133,10 +149,11 @@ interface GameStore {
   setShowCountMarkers: (v: boolean) => void;
   setRichAnimations: (v: boolean) => void;
   setTrickBadgeColors: (v: boolean) => void;
+  setSoundEnabled: (v: boolean) => void;
   initSocket: () => void;
 
   // Emit helpers
-  emitCreateRoom: (name: string, mode: GameMode) => void;
+  emitCreateRoom: (name: string, mode: GameMode, settings?: RoomSettings) => void;
   emitJoinGame: (name: string, roomId: string) => void;
   emitJoinSpectator: (name: string, roomId: string) => void;
   emitBid: (bid: number, marks: number) => void;
@@ -163,9 +180,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   biddingCountdown: null,
   validPlays: [],
   seatMap: null,
+  connectionStatus: 'connected',
   showCountMarkers: loadSettings().showCountMarkers,
   richAnimations: loadSettings().richAnimations,
   trickBadgeColors: loadSettings().trickBadgeColors,
+  soundEnabled: loadSettings().soundEnabled,
   settingsModalOpen: false,
   bidModalOpen: false,
   trumpModalOpen: false,
@@ -219,6 +238,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     saveSettings({ ...loadSettings(), trickBadgeColors: v });
   },
 
+  setSoundEnabled: (v) => {
+    set({ soundEnabled: v });
+    saveSettings({ ...loadSettings(), soundEnabled: v });
+  },
+
   goLobby: () => {
     set({
       myPNum: null, myRoom: null, myHand: [], gameState: null,
@@ -229,6 +253,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       validPlays: [], seatMap: null,
       scorePops: [], trickSweepSeat: null, celebrateTeam: null,
       dealAnimating: false, trumpRevealSuit: null, lastTrickScore: 0, trickResult: null,
+      connectionStatus: 'connected',
     });
     window.history.replaceState({}, '', '/');
   },
@@ -237,10 +262,43 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const existing = get().socket;
     if (existing?.connected) return;
 
-    const socket = io({ transports: ['websocket', 'polling'] });
+    const socket = io({
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    });
     set({ socket });
 
-    socket.on('connect', () => console.log('[socket] connected'));
+    socket.on('connect', () => {
+      console.log('[socket] connected');
+      set({ connectionStatus: 'connected' });
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.log('[socket] disconnected:', reason);
+      set({ connectionStatus: reason === 'io server disconnect' ? 'disconnected' : 'reconnecting' });
+    });
+
+    socket.io.on('reconnect', () => {
+      console.log('[socket] reconnected');
+      set({ connectionStatus: 'connected' });
+      const { myRoom } = get();
+      if (myRoom) {
+        socket.emit('request_state', { room_id: myRoom });
+        get().addToast('Reconnected!', 'success');
+      }
+    });
+
+    socket.io.on('reconnect_attempt', () => {
+      set({ connectionStatus: 'reconnecting' });
+    });
+
+    socket.io.on('reconnect_failed', () => {
+      set({ connectionStatus: 'disconnected' });
+      get().addToast('Connection lost. Please refresh.', 'error');
+    });
 
     socket.on('room_joined', (d: RoomJoinedPayload) => {
       set({
@@ -321,12 +379,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
             set({ bidModalOpen: true });
           }
         } else {
+          playSound('countdown');
           set({ biddingCountdown: n });
         }
       }, 1000);
     });
 
     socket.on('bid_placed', (d: BidPlacedPayload) => {
+      playSound('bidPlace');
       const bidStr = d.bid === -1 ? 'passed'
         : d.bid === 0  ? `bid Low (${d.marks}m)`
         : d.bid === 42 ? `bid 42 (${d.marks}m)`
@@ -365,6 +425,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
 
     socket.on('trump_set', (d: TrumpSetPayload) => {
+      playSound('trumpSet');
       clearBiddingTimer();
       const SUIT_NAMES = ['Blanks','Aces','Deuces','Threes','Fours','Fives','Sixes','Doubles'];
       const tn = d.trump === null ? 'No Trump'
@@ -384,6 +445,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
 
     socket.on('your_turn', (d: YourTurnPayload) => {
+      playSound('yourTurn');
       clearBiddingTimer();
       set({
         myHand: d.hand ?? get().myHand,
@@ -407,6 +469,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
 
     socket.on('domino_played', (d: DominoPlayedPayload) => {
+      playSound('tilePlay');
       set(s => ({
         pendingPlay: null,
         gameState: s.gameState ? { ...s.gameState, trick: d.trick } : s.gameState,
@@ -414,19 +477,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
 
     socket.on('trick_complete', (d: TrickCompletePayload) => {
+      playSound('trickWin');
       const gs = get().gameState;
       const nm = gs?.players?.[d.winner] ?? `P${d.winner}`;
       get().addToast(`${nm} wins the trick! +${d.trick_score} pts`);
 
-      // Set trick result badge
+      // Set trick result badge (show for 1.6s, then mark as exiting for 0.35s slide-out)
       set({
         trickResult: {
           winnerName: nm,
           dominos: d.trick_dominos ?? [],
           score: d.trick_score,
+          exiting: false,
         },
       });
-      setTimeout(() => set({ trickResult: null }), 3200);
+      setTimeout(() => set(s => {
+        if (!s.trickResult) return {};
+        return { trickResult: { ...s.trickResult, exiting: true } };
+      }), 1600);
+      setTimeout(() => set({ trickResult: null }), 2000);
 
       // Determine winner's seat for sweep animation
       const seatMap = get().seatMap;
@@ -454,10 +523,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         setTimeout(() => set({ celebrateTeam: null }), 800);
       }
 
+      // Update scores and won-tricks immediately, but DELAY the sweep
+      // so the 4th tile's slide-in animation (550ms) can finish first.
       set(s => ({
         lastTrickWinner: d.winner,
         lastTrickScore: d.trick_score,
-        trickSweepSeat: winnerSeat,
         wonTricksPerPlayer: {
           ...s.wonTricksPerPlayer,
           [d.winner]: [...(s.wonTricksPerPlayer[d.winner] ?? []), d.trick_dominos],
@@ -471,15 +541,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
           trick_count: d.trick_count,
         } : s.gameState,
       }));
-      // Clear active trick display after 900ms (won tricks persist in wonTricksPerPlayer)
+      // Start sweep after 4th tile has landed (600ms delay)
+      setTimeout(() => set({ trickSweepSeat: winnerSeat }), 600);
+      // Clear active trick display after sweep finishes (600 + 900 = 1500ms)
       setTimeout(() => set(s => ({
         lastTrickWinner: null,
         trickSweepSeat: null,
         gameState: s.gameState ? { ...s.gameState, trick: [] } : s.gameState,
-      })), 900);
+      })), 1500);
     });
 
     socket.on('hand_complete', (d: HandCompletePayload) => {
+      const myTeam = get().myPNum ? (get().myPNum % 2 === 1 ? 1 : 2) : 0;
+      if (d.game_over) {
+        playSound(d.winner_team === myTeam ? 'gameWin' : 'gameLose');
+      } else {
+        playSound(d.made ? 'handMade' : 'handSet');
+      }
       set(s => ({
         gameState: s.gameState ? {
           ...s.gameState,
@@ -519,6 +597,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
 
     socket.on('error', (d: { message: string }) => {
+      playSound('error');
       get().addToast(d.message ?? 'Error', 'error');
       // If the server rejected a play, put the domino back
       const pp = get().pendingPlay;
@@ -536,10 +615,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  emitCreateRoom: (name, mode) => {
+  emitCreateRoom: (name, mode, settings) => {
     set({ myName: name });
     get().initSocket();
-    get().socket?.emit('create_room', { name, game_mode: mode });
+    get().socket?.emit('create_room', {
+      name,
+      game_mode: mode,
+      ...(settings ?? {}),
+    });
   },
 
   emitJoinGame: (name, roomId) => {

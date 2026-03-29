@@ -1,0 +1,10 @@
+{
+  "name": "42 — Texas Dominos",
+  "short_name": "42",
+  "description": "Multiplayer Texas Dominos trick-and-trump game",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a2e1f",
+  "theme_color": "#006d5b",
+  "icons": []
+}

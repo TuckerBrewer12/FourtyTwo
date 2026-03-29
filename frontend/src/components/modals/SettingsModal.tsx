@@ -36,6 +36,7 @@ export default function SettingsModal() {
     showCountMarkers, setShowCountMarkers,
     richAnimations, setRichAnimations,
     trickBadgeColors, setTrickBadgeColors,
+    soundEnabled, setSoundEnabled,
   } = useGameStore(useShallow(s => ({
     open: s.settingsModalOpen,
     showCountMarkers: s.showCountMarkers,
@@ -44,6 +45,8 @@ export default function SettingsModal() {
     setRichAnimations: s.setRichAnimations,
     trickBadgeColors: s.trickBadgeColors,
     setTrickBadgeColors: s.setTrickBadgeColors,
+    soundEnabled: s.soundEnabled,
+    setSoundEnabled: s.setSoundEnabled,
   })))
 
   if (!open) return null
@@ -65,6 +68,12 @@ export default function SettingsModal() {
           description="Flying tiles, shimmer effects, and smooth sweeps — turn off for a snappier experience"
           checked={richAnimations}
           onChange={setRichAnimations}
+        />
+        <ToggleRow
+          label="Sound Effects"
+          description="Audio feedback for plays, bids, tricks, and game events"
+          checked={soundEnabled}
+          onChange={setSoundEnabled}
         />
         <ToggleRow
           label="Trick Badge — Domino Colors"

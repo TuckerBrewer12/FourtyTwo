@@ -2,11 +2,16 @@ import { useGameStore } from '../../store/gameStore'
 import { useShallow } from 'zustand/react/shallow'
 
 export default function ChatToggle() {
-  const { chatOpen, unreadChat, setChatOpen } = useGameStore(useShallow(s => ({
+  const { chatOpen, unreadChat, setChatOpen, gameState } = useGameStore(useShallow(s => ({
     chatOpen:    s.chatOpen,
     unreadChat:  s.unreadChat,
     setChatOpen: s.setChatOpen,
+    gameState:   s.gameState,
   })))
+
+  // Hide chat toggle entirely when chat is disabled
+  const chatMode = gameState?.settings?.chat_mode ?? 'emoji'
+  if (chatMode === 'off') return null
 
   return (
     <button
