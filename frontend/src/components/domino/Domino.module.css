@@ -71,9 +71,9 @@
 .md .pip      { width: 7px;  height: 7px; }
 .md           { border-radius: 8px; }
 
-.lg .half     { width: 56px; height: 62px; padding: 5px; }
-.lg .pip      { width: 11px; height: 11px; }
-.lg           { border-radius: 11px; }
+.lg .half     { width: 50px; height: 56px; padding: 5px; }
+.lg .pip      { width: 10px; height: 10px; }
+.lg           { border-radius: 10px; }
 
 .xl .half     { width: 56px; height: 64px; padding: 5px; }
 .xl .pip      { width: 11px; height: 11px; }

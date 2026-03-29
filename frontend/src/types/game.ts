@@ -78,14 +78,6 @@ export interface GameState {
   win_target: number;
   max_bid: number;
   bid_log?: BidLogEntry[];
-  settings?: {
-    bid_timer: number;
-    chat_mode: 'emoji' | 'text' | 'off';
-    allow_spectators: boolean;
-    marks_target: number;
-    nelo: boolean;
-    plunge: boolean;
-  };
 }
 
 /* ---- Server → Client event payloads ---- */

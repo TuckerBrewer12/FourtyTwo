@@ -433,6 +433,31 @@ class GameRoom:
         return state
 
     # ------------------------------------------------------------------
+    def _is_hand_decided(self):
+        """Check if hand outcome is already determined — end hand early."""
+        high_bid = self.game._high_bid
+        high_bidder = self.game._high_bidder
+        if high_bidder is None or high_bid is None or high_bid < 0:
+            return False
+        t1, t2 = self.game.get_team_scores()
+        bid_team = 1 if high_bidder in (1, 3) else 2
+        bid_score = t1 if bid_team == 1 else t2
+        opp_score = t2 if bid_team == 1 else t1
+        # Nello: set if bidder won any points
+        if high_bid == 0:
+            return bid_score > 0
+        # Slam: set if opponents won any points
+        if high_bid == 42:
+            return opp_score > 0
+        # Regular bid: set if opponents got more than (42 - bid)
+        if opp_score > 42 - high_bid:
+            return True
+        # In marks mode, also end early if bidder already made their bid
+        if self.game_mode == "marks_7" and bid_score >= high_bid:
+            return True
+        return False
+
+    # ------------------------------------------------------------------
     def finish_hand(self, sio: SocketIO):
         t1, t2      = self.game.get_team_scores()
         high_bidder = self.game._high_bidder
@@ -702,7 +727,7 @@ def create_app(test_config=None):
                     "team2_total": room.team2_total,
                     "trick_count": room.trick_count,
                 }, room=room_id)
-                if room.trick_count == 7:
+                if room.trick_count == 7 or room._is_hand_decided():
                     room.finish_hand(sio)
                 else:
                     _push_turn(room)
@@ -1142,7 +1167,7 @@ def create_app(test_config=None):
                 "team2_total": room.team2_total,
                 "trick_count": room.trick_count,
             }, room=room.room_id)
-            if room.trick_count == 7:
+            if room.trick_count == 7 or room._is_hand_decided():
                 room.finish_hand(sio)
             else:
                 _push_turn(room)

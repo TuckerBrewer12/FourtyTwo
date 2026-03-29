@@ -15,7 +15,7 @@ export default function LobbyScreen() {
   const [nameC, setNameC]   = useState('')
   const [nameJ, setNameJ]   = useState('')
   const [roomCode, setRoom] = useState('')
-  const [mode, setMode]     = useState<GameMode>('marks_7')
+  const [mode, setMode]     = useState<GameMode | null>(null)
 
   // Settings
   const [bidTimerOn, setBidTimerOn]   = useState(false)
@@ -37,6 +37,7 @@ export default function LobbyScreen() {
   function create() {
     const n = nameC.trim()
     if (!n) { addToast('Enter your name', 'error'); return }
+    if (!mode) { addToast('Please select a game type', 'error'); return }
     emitCreateRoom(n, mode, {
       bid_timer: bidTimerOn ? bidTimerSec : 0,
       chat_mode: chatMode,
@@ -109,7 +110,7 @@ export default function LobbyScreen() {
                   placeholder="e.g. Texas Pete" maxLength={16} style={inputStyle} />
               </Field>
 
-              <Field label="Game Mode">
+              <Field label="Game Type">
                 <div style={{ display: 'flex', gap: '.4rem' }}>
                   {(['marks_7', 'points_250'] as GameMode[]).map(m => (
                     <button key={m} onClick={() => setMode(m)} style={{
@@ -119,119 +120,132 @@ export default function LobbyScreen() {
                       background: mode === m ? 'var(--accent-light)' : 'transparent',
                       color: mode === m ? 'var(--accent)' : 'var(--text-muted)',
                     }}>
-                      {m === 'points_250' ? '250 Points' : `${marksTarget} Marks`}
+                      {m === 'points_250' ? '250 Points' : 'Marks'}
                     </button>
                   ))}
                 </div>
-                <div style={{
-                  marginTop: '.5rem', background: 'var(--bg)', borderRadius: 'var(--radius)',
-                  padding: '.7rem', fontSize: '.8rem', color: 'var(--text-muted)', lineHeight: 1.55,
-                }}>
-                  <strong style={{ color: 'var(--accent)' }}>
-                    {mode === 'points_250' ? '250 Points' : `${marksTarget} Marks`}
-                  </strong>{' — '}{MODE_INFO[mode]}
-                </div>
-              </Field>
-
-              {/* Marks target slider — only for marks mode */}
-              {mode === 'marks_7' && (
-                <Field label={`Marks to Win: ${marksTarget}`}>
-                  <input type="range" min={1} max={21} value={marksTarget}
-                    onChange={e => setMarksTarget(Number(e.target.value))}
-                    style={{ width: '100%', accentColor: 'var(--accent)' }} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.7rem', color: 'var(--text-faint)' }}>
-                    <span>1</span><span>7 (default)</span><span>21</span>
+                {mode ? (
+                  <div style={{
+                    marginTop: '.5rem', background: 'var(--bg)', borderRadius: 'var(--radius)',
+                    padding: '.7rem', fontSize: '.8rem', color: 'var(--text-muted)', lineHeight: 1.55,
+                  }}>
+                    <strong style={{ color: 'var(--accent)' }}>
+                      {mode === 'points_250' ? '250 Points' : `${marksTarget} Marks`}
+                    </strong>{' — '}{MODE_INFO[mode]}
                   </div>
-                </Field>
-              )}
-
-              {/* Bid Timer */}
-              <Field label="Bid Timer">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
-                  <Toggle on={bidTimerOn} onToggle={() => setBidTimerOn(!bidTimerOn)} />
-                  <span style={{ fontSize: '.82rem', color: bidTimerOn ? 'var(--text)' : 'var(--text-faint)' }}>
-                    {bidTimerOn ? `${bidTimerSec}s per bid` : 'No time limit'}
-                  </span>
-                </div>
-                {bidTimerOn && (
-                  <div style={{ marginTop: '.4rem' }}>
-                    <input type="range" min={5} max={60} step={5} value={bidTimerSec}
-                      onChange={e => setBidTimerSec(Number(e.target.value))}
-                      style={{ width: '100%', accentColor: 'var(--accent)' }} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.7rem', color: 'var(--text-faint)' }}>
-                      <span>5s</span><span>30s</span><span>60s</span>
-                    </div>
+                ) : (
+                  <div style={{
+                    marginTop: '.5rem', background: 'var(--bg)', borderRadius: 'var(--radius)',
+                    padding: '.7rem', fontSize: '.8rem', color: 'var(--text-faint)', lineHeight: 1.55,
+                    fontStyle: 'italic',
+                  }}>
+                    Pick a game type to see settings
                   </div>
                 )}
               </Field>
 
-              {/* Chat Mode */}
-              <Field label="Chat">
-                <div style={{ display: 'flex', gap: '.35rem' }}>
-                  {([['emoji', 'Emojis Only'], ['text', 'Full Text'], ['off', 'Off']] as [ChatMode, string][]).map(([v, label]) => (
-                    <button key={v} onClick={() => setChatMode(v)} style={{
-                      padding: '.35rem .75rem', borderRadius: '20px', fontWeight: 600,
-                      fontSize: '.78rem', cursor: 'pointer',
-                      border: `1.5px solid ${chatMode === v ? 'var(--accent)' : 'var(--border)'}`,
-                      background: chatMode === v ? 'var(--accent-light)' : 'transparent',
-                      color: chatMode === v ? 'var(--accent)' : 'var(--text-muted)',
-                    }}>
-                      {label}
-                    </button>
-                  ))}
+              {/* Settings — only shown after mode is selected */}
+              {mode && (<>
+                {/* Marks target slider — only for marks mode */}
+                {mode === 'marks_7' && (
+                  <Field label={`Marks to Win: ${marksTarget}`}>
+                    <input type="range" min={1} max={21} value={marksTarget}
+                      onChange={e => setMarksTarget(Number(e.target.value))}
+                      style={{ width: '100%', accentColor: 'var(--accent)' }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.7rem', color: 'var(--text-faint)' }}>
+                      <span>1</span><span>7 (default)</span><span>21</span>
+                    </div>
+                  </Field>
+                )}
+
+                {/* Bid Timer */}
+                <Field label="Bid Timer">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
+                    <Toggle on={bidTimerOn} onToggle={() => setBidTimerOn(!bidTimerOn)} />
+                    <span style={{ fontSize: '.82rem', color: bidTimerOn ? 'var(--text)' : 'var(--text-faint)' }}>
+                      {bidTimerOn ? `${bidTimerSec}s per bid` : 'No time limit'}
+                    </span>
+                  </div>
+                  {bidTimerOn && (
+                    <div style={{ marginTop: '.4rem' }}>
+                      <input type="range" min={5} max={60} step={5} value={bidTimerSec}
+                        onChange={e => setBidTimerSec(Number(e.target.value))}
+                        style={{ width: '100%', accentColor: 'var(--accent)' }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.7rem', color: 'var(--text-faint)' }}>
+                        <span>5s</span><span>30s</span><span>60s</span>
+                      </div>
+                    </div>
+                  )}
+                </Field>
+
+                {/* Chat Mode */}
+                <Field label="Chat">
+                  <div style={{ display: 'flex', gap: '.35rem' }}>
+                    {([['emoji', 'Emojis Only'], ['text', 'Full Text'], ['off', 'Off']] as [ChatMode, string][]).map(([v, label]) => (
+                      <button key={v} onClick={() => setChatMode(v)} style={{
+                        padding: '.35rem .75rem', borderRadius: '20px', fontWeight: 600,
+                        fontSize: '.78rem', cursor: 'pointer',
+                        border: `1.5px solid ${chatMode === v ? 'var(--accent)' : 'var(--border)'}`,
+                        background: chatMode === v ? 'var(--accent-light)' : 'transparent',
+                        color: chatMode === v ? 'var(--accent)' : 'var(--text-muted)',
+                      }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+
+                {/* Spectators toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '.82rem', fontWeight: 600, color: 'var(--text-muted)' }}>Allow Spectators</span>
+                  <Toggle on={allowSpectators} onToggle={() => setAllowSpectators(!allowSpectators)} />
                 </div>
-              </Field>
 
-              {/* Spectators toggle */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '.82rem', fontWeight: 600, color: 'var(--text-muted)' }}>Allow Spectators</span>
-                <Toggle on={allowSpectators} onToggle={() => setAllowSpectators(!allowSpectators)} />
-              </div>
-
-              {/* Advanced rules section */}
-              <button onClick={() => setShowAdvanced(!showAdvanced)} style={{
-                display: 'flex', alignItems: 'center', gap: '.4rem',
-                background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: '.78rem', fontWeight: 700, color: 'var(--text-muted)',
-                padding: '.2rem 0', textTransform: 'uppercase', letterSpacing: '.05em',
-              }}>
-                <span style={{ transform: showAdvanced ? 'rotate(90deg)' : 'none', transition: 'transform .2s', display: 'inline-block' }}>
-                  ▸
-                </span>
-                House Rules
-              </button>
-
-              {showAdvanced && (
-                <div style={{
-                  display: 'flex', flexDirection: 'column', gap: '.75rem',
-                  background: 'var(--bg)', borderRadius: 'var(--radius)',
-                  padding: '.75rem', border: '1px solid var(--border)',
+                {/* Advanced rules section */}
+                <button onClick={() => setShowAdvanced(!showAdvanced)} style={{
+                  display: 'flex', alignItems: 'center', gap: '.4rem',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: '.78rem', fontWeight: 700, color: 'var(--text-muted)',
+                  padding: '.2rem 0', textTransform: 'uppercase', letterSpacing: '.05em',
                 }}>
-                  {/* Nelo */}
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.25rem' }}>
-                      <span style={{ fontSize: '.82rem', fontWeight: 700, color: 'var(--text)' }}>Nelo</span>
-                      <Toggle on={nelo} onToggle={() => setNelo(!nelo)} />
-                    </div>
-                    <p style={{ fontSize: '.72rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
-                      When the bidding team gets set, the penalty marks are <strong>doubled</strong>. High risk, high stakes.
-                    </p>
-                  </div>
+                  <span style={{ transform: showAdvanced ? 'rotate(90deg)' : 'none', transition: 'transform .2s', display: 'inline-block' }}>
+                    ▸
+                  </span>
+                  House Rules
+                </button>
 
-                  <div style={{ height: 1, background: 'var(--border)' }} />
-
-                  {/* Plunge */}
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.25rem' }}>
-                      <span style={{ fontSize: '.82rem', fontWeight: 700, color: 'var(--text)' }}>Plunge</span>
-                      <Toggle on={plunge} onToggle={() => setPlunge(!plunge)} />
+                {showAdvanced && (
+                  <div style={{
+                    display: 'flex', flexDirection: 'column', gap: '.75rem',
+                    background: 'var(--bg)', borderRadius: 'var(--radius)',
+                    padding: '.75rem', border: '1px solid var(--border)',
+                  }}>
+                    {/* Nelo */}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.25rem' }}>
+                        <span style={{ fontSize: '.82rem', fontWeight: 700, color: 'var(--text)' }}>Nelo</span>
+                        <Toggle on={nelo} onToggle={() => setNelo(!nelo)} />
+                      </div>
+                      <p style={{ fontSize: '.72rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                        When the bidding team gets set, the penalty marks are <strong>doubled</strong>. High risk, high stakes.
+                      </p>
                     </div>
-                    <p style={{ fontSize: '.72rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
-                      Bid over 30 and get set? That's an <strong>extra mark</strong> penalty on top. Punishes overbidding.
-                    </p>
+
+                    <div style={{ height: 1, background: 'var(--border)' }} />
+
+                    {/* Plunge */}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.25rem' }}>
+                        <span style={{ fontSize: '.82rem', fontWeight: 700, color: 'var(--text)' }}>Plunge</span>
+                        <Toggle on={plunge} onToggle={() => setPlunge(!plunge)} />
+                      </div>
+                      <p style={{ fontSize: '.72rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                        Bid over 30 and get set? That's an <strong>extra mark</strong> penalty on top. Punishes overbidding.
+                      </p>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </>)}
 
               <Btn onClick={create}>Create Game</Btn>
               <GhostBtn onClick={openRules}>📖 Rules</GhostBtn>

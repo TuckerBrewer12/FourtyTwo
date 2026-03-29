@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useGameStore } from '../../store/gameStore'
+import { useShallow } from 'zustand/react/shallow'
 
 const SUIT_NAMES = ['Blanks','Aces','Deuces','Threes','Fours','Fives','Sixes','Doubles']
 const SUIT_ICONS = ['⬜','🔵','🟢','🟡','🟣','🔴','🔷','♟']
@@ -22,7 +23,10 @@ function useClock() {
 }
 
 export default function ScoreHeader() {
-  const gameState = useGameStore(s => s.gameState)
+  const { gameState, myPNum } = useGameStore(useShallow(s => ({
+    gameState: s.gameState,
+    myPNum: s.myPNum,
+  })))
   const gs = gameState
   const clock = useClock()
 
@@ -48,6 +52,34 @@ export default function ScoreHeader() {
     : highBid === 42 ? `42 (${highMarks}m)`
     : String(highBid)
 
+  // Determine my team and "left to win" info
+  const myTeam = myPNum ? (myPNum % 2 === 1 ? 1 : 2) : 1
+  const isMarksMode = gs?.game_mode === 'marks_7'
+  const winTarget = gs?.win_target ?? (isMarksMode ? 7 : 250)
+
+  let leftToWin: string | null = null
+  if (gs) {
+    if (isMarksMode) {
+      const myMarks = myTeam === 1 ? (gs.team1_marks ?? 0) : (gs.team2_marks ?? 0)
+      const remaining = Math.max(0, winTarget - myMarks)
+      leftToWin = remaining === 1 ? '1 mark to win' : `${remaining} marks to win`
+    } else {
+      const myTotal = myTeam === 1 ? (gs.team1_total ?? 0) : (gs.team2_total ?? 0)
+      const remaining = Math.max(0, winTarget - myTotal)
+      leftToWin = `${remaining} pts to win`
+    }
+  }
+
+  // Overall game score line
+  let gameScoreLabel: string | null = null
+  if (gs) {
+    if (isMarksMode) {
+      gameScoreLabel = `${gs.team1_marks ?? 0} – ${gs.team2_marks ?? 0} marks`
+    } else {
+      gameScoreLabel = `${gs.team1_total ?? 0} – ${gs.team2_total ?? 0} total`
+    }
+  }
+
   return (
     <div style={{
       background: 'var(--surface)',
@@ -61,21 +93,42 @@ export default function ScoreHeader() {
       position: 'relative',
       flexShrink: 0,
     }}>
-      {/* Brand */}
-      <span style={{
-        fontWeight: 800, fontSize: '.95rem',
-        color: 'var(--accent)', letterSpacing: '-.01em',
-      }}>
-        FortyTwo
-      </span>
+      {/* Left: Brand + overall game score */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', minWidth: 0 }}>
+        <span style={{
+          fontWeight: 800, fontSize: '.95rem',
+          color: 'var(--accent)', letterSpacing: '-.01em',
+          flexShrink: 0,
+        }}>
+          FortyTwo
+        </span>
+        {gameScoreLabel && (
+          <>
+            <Dot />
+            <span style={{
+              fontSize: '.72rem', fontWeight: 700, color: 'var(--text-muted)',
+              whiteSpace: 'nowrap',
+              background: 'var(--bg)', padding: '.12rem .45rem',
+              borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+            }}>
+              <span style={{ color: 'var(--t1)' }}>{isMarksMode ? (gs?.team1_marks ?? 0) : (gs?.team1_total ?? 0)}</span>
+              <span style={{ color: 'var(--text-faint)', margin: '0 .15rem' }}>–</span>
+              <span style={{ color: 'var(--t2)' }}>{isMarksMode ? (gs?.team2_marks ?? 0) : (gs?.team2_total ?? 0)}</span>
+              <span style={{ color: 'var(--text-faint)', marginLeft: '.25rem', fontSize: '.65rem', fontWeight: 500 }}>
+                {isMarksMode ? 'marks' : 'pts'}
+              </span>
+            </span>
+          </>
+        )}
+      </div>
 
       {/* Center info */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: '.75rem',
         position: 'absolute', left: '50%', transform: 'translateX(-50%)',
-        maxWidth: '70vw', overflow: 'hidden',
+        maxWidth: '50vw', overflow: 'hidden',
       }}>
-        {/* Score — most prominent element in header */}
+        {/* Hand score — this hand only */}
         <span style={{
           fontSize: '.88rem', fontWeight: 800, color: 'var(--text)',
           whiteSpace: 'nowrap', letterSpacing: '.02em',
@@ -126,18 +179,24 @@ export default function ScoreHeader() {
             </span>
           </>
         )}
-
-        <Dot />
-        <span style={{
-          fontSize: '.68rem', fontWeight: 500, color: 'var(--text-faint)',
-          fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
-        }}>
-          {clock}
-        </span>
       </div>
 
-      {/* Right icons */}
+      {/* Right: "left to win" + icons */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+        {leftToWin && (
+          <span style={{
+            fontSize: '.68rem', fontWeight: 700,
+            color: 'var(--accent)',
+            whiteSpace: 'nowrap',
+            background: 'var(--accent-light)',
+            padding: '.15rem .5rem',
+            borderRadius: 'var(--radius-pill)',
+            border: '1px solid var(--accent)',
+            letterSpacing: '.01em',
+          }}>
+            {leftToWin}
+          </span>
+        )}
         <button
           onClick={() => useGameStore.setState({ settingsModalOpen: true })}
           style={{
