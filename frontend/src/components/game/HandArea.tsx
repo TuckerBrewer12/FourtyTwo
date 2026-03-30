@@ -68,8 +68,8 @@ export default function HandArea() {
       {statusMsg && (
         <div style={{
           background: myTurn
-            ? 'linear-gradient(135deg, rgba(16,185,129,.15), rgba(255,255,255,.95))'
-            : 'rgba(255,255,255,.88)',
+            ? 'linear-gradient(135deg, rgba(16,185,129,.15), var(--surface))'
+            : 'var(--surface)',
           backdropFilter: 'blur(10px)',
           borderRadius: 'var(--radius-pill)',
           padding: myTurn ? (isMobile ? '.3rem .85rem' : '.38rem 1.2rem') : (isMobile ? '.22rem .7rem' : '.27rem .9rem'),

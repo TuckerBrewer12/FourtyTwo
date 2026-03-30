@@ -53,7 +53,7 @@ function TrumpRevealOverlay({ suit }: { suit: number }) {
       {/* Main card — clean, minimal */}
       <div style={{
         position: 'relative',
-        background: `linear-gradient(145deg, var(--surface) 0%, #f8faf9 100%)`,
+        background: `linear-gradient(145deg, var(--surface) 0%, var(--surface-soft) 100%)`,
         borderRadius: 24,
         padding: '2rem 3rem',
         textAlign: 'center',
@@ -132,7 +132,7 @@ export default function GameBoard() {
       inset: 0,
       display: 'flex',
       flexDirection: 'column',
-      background: 'linear-gradient(135deg, var(--bg-start) 0%, #f0f5f3 45%, var(--bg-end) 100%)',
+      background: 'linear-gradient(135deg, var(--bg-start) 0%, var(--bg) 45%, var(--bg-end) 100%)',
       overflow: 'hidden',
     }}>
       {/* Spectator banner */}

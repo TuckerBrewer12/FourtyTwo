@@ -27,8 +27,9 @@ export default function LobbyScreen() {
   const [plunge, setPlunge] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
 
-  const { emitCreateRoom, emitJoinGame, addToast } = useGameStore(useShallow(s => ({
+  const { emitCreateRoom, emitQuickPlay, emitJoinGame, addToast } = useGameStore(useShallow(s => ({
     emitCreateRoom: s.emitCreateRoom,
+    emitQuickPlay:  s.emitQuickPlay,
     emitJoinGame:   s.emitJoinGame,
     addToast:       s.addToast,
   })))
@@ -248,6 +249,22 @@ export default function LobbyScreen() {
               </>)}
 
               <Btn onClick={create}>Create Game</Btn>
+              <button onClick={() => {
+                const n = nameC.trim()
+                if (!n) { addToast('Enter your name first', 'error'); return }
+                emitQuickPlay(n, mode || 'marks_7')
+              }} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.5rem',
+                marginTop: '.75rem', width: '100%',
+                background: 'var(--surface)',
+                color: 'var(--accent)', padding: '.7rem 1.2rem',
+                borderRadius: 'var(--radius-pill)', fontWeight: 700, fontSize: '.88rem',
+                border: '1.5px solid var(--accent)',
+                cursor: 'pointer',
+                transition: 'all .2s ease',
+              }}>
+                🤖 Quick Play vs Bots
+              </button>
               <GhostBtn onClick={openRules}>📖 Rules</GhostBtn>
             </div>
           ) : (

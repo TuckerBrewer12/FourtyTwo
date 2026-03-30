@@ -33,12 +33,15 @@ function ToggleRow({
 export default function SettingsModal() {
   const {
     open,
+    darkMode, setDarkMode,
     showCountMarkers, setShowCountMarkers,
     richAnimations, setRichAnimations,
     trickBadgeColors, setTrickBadgeColors,
     soundEnabled, setSoundEnabled,
   } = useGameStore(useShallow(s => ({
     open: s.settingsModalOpen,
+    darkMode: s.darkMode,
+    setDarkMode: s.setDarkMode,
     showCountMarkers: s.showCountMarkers,
     setShowCountMarkers: s.setShowCountMarkers,
     richAnimations: s.richAnimations,
@@ -57,6 +60,12 @@ export default function SettingsModal() {
       <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '1rem' }}>Settings</h3>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+        <ToggleRow
+          label="Dark Mode"
+          description="Easy on the eyes for late-night games"
+          checked={darkMode}
+          onChange={setDarkMode}
+        />
         <ToggleRow
           label="Show Count Markers"
           description="Orange outline on dominoes worth points (multiples of 5)"

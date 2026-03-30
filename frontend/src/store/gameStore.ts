@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { io, Socket } from 'socket.io-client'
 import { playSound } from '../audio/sounds'
+import { hapticLight, hapticMedium, hapticSuccess, hapticError } from '../utils/haptics'
 import type {
   Screen, GameState, GameMode, Domino, SeatMap,
   RoomJoinedPayload, PlayerJoinedPayload, RoomFullPayload,
@@ -36,10 +37,13 @@ let toastCounter = 0;
 let biddingTimer: ReturnType<typeof setInterval> | null = null;
 let scorePopCounter = 0;
 
-// Apply persisted animation preference immediately on load
+// Apply persisted settings immediately on load
 const _initSettings = loadSettings();
 if (!_initSettings.richAnimations) {
   document.body.classList.add('no-anim');
+}
+if (_initSettings.darkMode) {
+  document.documentElement.setAttribute('data-theme', 'dark');
 }
 
 // --- Persisted settings helpers ---
@@ -50,6 +54,7 @@ interface PersistedSettings {
   richAnimations: boolean;
   trickBadgeColors: boolean;
   soundEnabled: boolean;
+  darkMode: boolean;
 }
 
 const DEFAULT_SETTINGS: PersistedSettings = {
@@ -57,6 +62,7 @@ const DEFAULT_SETTINGS: PersistedSettings = {
   richAnimations: true,
   trickBadgeColors: true,
   soundEnabled: true,
+  darkMode: false,
 };
 
 function loadSettings(): PersistedSettings {
@@ -106,6 +112,7 @@ interface GameStore {
   richAnimations: boolean;
   trickBadgeColors: boolean;
   soundEnabled: boolean;
+  darkMode: boolean;
   settingsModalOpen: boolean;
 
   // Modal visibility
@@ -113,6 +120,7 @@ interface GameStore {
   trumpModalOpen: boolean;
   handResultData: HandCompletePayload | null;  // non-null = modal open
   rulesModalOpen: boolean;
+  statsOpen: boolean;
   gameOverData: HandCompletePayload | null;    // non-null = game over screen
 
   // Status bar
@@ -150,10 +158,12 @@ interface GameStore {
   setRichAnimations: (v: boolean) => void;
   setTrickBadgeColors: (v: boolean) => void;
   setSoundEnabled: (v: boolean) => void;
+  setDarkMode: (v: boolean) => void;
   initSocket: () => void;
 
   // Emit helpers
   emitCreateRoom: (name: string, mode: GameMode, settings?: RoomSettings) => void;
+  emitQuickPlay: (name: string, mode: GameMode) => void;
   emitJoinGame: (name: string, roomId: string) => void;
   emitJoinSpectator: (name: string, roomId: string) => void;
   emitBid: (bid: number, marks: number) => void;
@@ -185,11 +195,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
   richAnimations: loadSettings().richAnimations,
   trickBadgeColors: loadSettings().trickBadgeColors,
   soundEnabled: loadSettings().soundEnabled,
+  darkMode: loadSettings().darkMode,
   settingsModalOpen: false,
   bidModalOpen: false,
   trumpModalOpen: false,
   handResultData: null,
   rulesModalOpen: false,
+  statsOpen: false,
   gameOverData: null,
   statusMsg: 'Waiting…',
   chatOpen: false,
@@ -243,12 +255,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
     saveSettings({ ...loadSettings(), soundEnabled: v });
   },
 
+  setDarkMode: (v) => {
+    set({ darkMode: v });
+    saveSettings({ ...loadSettings(), darkMode: v });
+    document.documentElement.setAttribute('data-theme', v ? 'dark' : 'light');
+  },
+
   goLobby: () => {
     set({
       myPNum: null, myRoom: null, myHand: [], gameState: null,
       isSpectator: false, currentScreen: 'lobby',
       bidModalOpen: false, trumpModalOpen: false,
-      handResultData: null, gameOverData: null, chatOpen: false,
+      handResultData: null, rulesModalOpen: false, statsOpen: false, gameOverData: null, chatOpen: false,
       unreadChat: 0, statusMsg: 'Waiting…', pendingPlay: null, lastTrickWinner: null, wonTricksPerPlayer: {}, biddingCountdown: null,
       validPlays: [], seatMap: null,
       scorePops: [], trickSweepSeat: null, celebrateTeam: null,
@@ -426,6 +444,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     socket.on('trump_set', (d: TrumpSetPayload) => {
       playSound('trumpSet');
+      hapticMedium();
       clearBiddingTimer();
       const SUIT_NAMES = ['Blanks','Aces','Deuces','Threes','Fours','Fives','Sixes','Doubles'];
       const tn = d.trump === null ? 'No Trump'
@@ -446,6 +465,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     socket.on('your_turn', (d: YourTurnPayload) => {
       playSound('yourTurn');
+      hapticLight();
       clearBiddingTimer();
       set({
         myHand: d.hand ?? get().myHand,
@@ -470,6 +490,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     socket.on('domino_played', (d: DominoPlayedPayload) => {
       playSound('tilePlay');
+      hapticLight();
       set(s => ({
         pendingPlay: null,
         gameState: s.gameState ? { ...s.gameState, trick: d.trick } : s.gameState,
@@ -478,6 +499,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     socket.on('trick_complete', (d: TrickCompletePayload) => {
       playSound('trickWin');
+      hapticMedium();
       const gs = get().gameState;
       const nm = gs?.players?.[d.winner] ?? `P${d.winner}`;
       get().addToast(`${nm} wins the trick! +${d.trick_score} pts`);
@@ -555,6 +577,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const myTeam = get().myPNum ? (get().myPNum % 2 === 1 ? 1 : 2) : 0;
       if (d.game_over) {
         playSound(d.winner_team === myTeam ? 'gameWin' : 'gameLose');
+        if (d.winner_team === myTeam) {
+          hapticSuccess();
+        } else {
+          hapticError();
+        }
       } else {
         playSound(d.made ? 'handMade' : 'handSet');
       }
@@ -598,6 +625,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     socket.on('error', (d: { message: string }) => {
       playSound('error');
+      hapticError();
       get().addToast(d.message ?? 'Error', 'error');
       // If the server rejected a play, put the domino back
       const pp = get().pendingPlay;
@@ -625,6 +653,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
+  emitQuickPlay: (name, mode) => {
+    set({ myName: name });
+    get().initSocket();
+    get().socket?.emit('quick_play', { name, game_mode: mode });
+  },
+
   emitJoinGame: (name, roomId) => {
     set({ myName: name });
     get().initSocket();
@@ -648,6 +682,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   emitPlay: (domino) => {
     if (!get().myTurn || get().isSpectator) return;
+    hapticLight();
     get().socket?.emit('play', { room_id: get().myRoom, domino });
     set(s => ({
       myTurn: false,

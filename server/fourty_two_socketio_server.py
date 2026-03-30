@@ -30,6 +30,7 @@ import uuid
 import logging
 import threading
 import time
+import random
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -164,11 +165,27 @@ def _bot_choose_bid(room, pnum: int) -> tuple:
     # Count tiles in hand that are count tiles (pip total divisible by 5)
     count_bonus = sum(d.value() > 0 for d in hand) * 1.5
 
+    # Add random noise so bots don't all bid identically
     estimated_pts = best_strength * 5.5 + count_bonus
+    estimated_pts += random.uniform(-3, 3)
+
+    # Only bid if best_strength >= 3.0 (need at least 3 likely tricks)
+    if best_strength < 3.0:
+        return (-1, 1)   # pass
+
     raw_bid = int(estimated_pts)
 
-    # Round to legal bid range 30-41 (42 only for extraordinary hands)
+    # If best_strength >= 5.5 and hand has 4+ trumps in best suit, consider bidding 42
+    trump_count = sum(1 for d in hand if d.contains(best_trump))
+    if best_strength >= 5.5 and trump_count >= 4:
+        return (42, 1)
+
+    # Round to legal bid range 30-41
     bid_val = max(30, min(41, raw_bid))
+
+    # Dealer (pnum == room.dealer) must bid minimum 30 if all pass
+    if pnum == room.dealer and hb <= 0:
+        return (30, 1)
 
     # Must beat current high bid
     if hb in (0, 42):
@@ -176,13 +193,32 @@ def _bot_choose_bid(room, pnum: int) -> tuple:
     if hb >= bid_val:
         return (-1, 1)   # pass
 
+    # When partner has already bid, be more conservative (pass unless very strong)
+    if hb > 0:
+        partner_pnum = ((pnum - 1) ^ 2) + 1
+        partner_bid_placed = any(entry["player"] == partner_pnum for entry in room.bid_log)
+        if partner_bid_placed and best_strength < 4.5:
+            return (-1, 1)   # pass if partner bid but we're weak
+
     return (bid_val, 1)
 
 
 def _bot_choose_trump(room, pnum: int) -> int:
     """Choose the best trump suit for the hand (0-7)."""
     hand = room.game.get_hand(pnum)
-    best_t = max(range(8), key=lambda t: _bot_hand_strength(hand, t))
+
+    # Evaluate strength for each trump option
+    trump_strengths = {}
+    for t in range(8):
+        strength = _bot_hand_strength(hand, t)
+        # Give bonus for doubles trump if hand has 3+ doubles
+        if t == 7:
+            double_count = sum(1 for d in hand if d.nums()[0] == d.nums()[1])
+            if double_count >= 3:
+                strength += 1.5
+        trump_strengths[t] = strength
+
+    best_t = max(range(8), key=lambda t: trump_strengths[t])
     return best_t
 
 
@@ -200,11 +236,25 @@ def _bot_choose_play(room, pnum: int) -> list:
         # Leading the trick
         trump_plays = [d for d in valid if trump is not None and Domino(d).contains(trump)]
         count_plays = [d for d in valid if Domino(d).value() > 0]
-        if trump_plays:
-            # Lead high trump
+
+        # Check if bot is the bidder
+        is_bidder = (pnum == room.game._high_bidder)
+
+        if is_bidder and trump_plays:
+            # If bot IS the bidder and has trump, lead trump to pull opponents' trump out first
             return max(trump_plays, key=lambda d: Domino(d).low_side(trump=trump))
+
+        # If NOT the bidder, avoid leading trump; prefer leading suits with doubles (guaranteed winners)
+        if not is_bidder:
+            double_plays = [d for d in valid if d[0] == d[1]]
+            if double_plays:
+                return double_plays[0]
+            if count_plays:
+                return max(count_plays, key=lambda d: Domino(d).value())
+            return max(valid, key=lambda d: max(d[0], d[1]))
+
+        # Bidder but no trump — prefer leading count tiles
         if count_plays:
-            # Lead count tile — try to win it
             return max(count_plays, key=lambda d: Domino(d).value())
         # Lead highest non-trump
         return max(valid, key=lambda d: max(d[0], d[1]))
@@ -237,21 +287,41 @@ def _bot_choose_play(room, pnum: int) -> list:
     partner_winning = (winner_pnum == partner_pnum)
 
     if partner_winning:
-        # Dump the lowest non-count domino; if none, dump lowest count
-        non_count = [d for d in valid if Domino(d).value() == 0]
-        if non_count:
-            return min(non_count, key=lambda d: max(d[0], d[1]))
-        return min(valid, key=lambda d: Domino(d).value())
+        # If the trick has count (pip value > 0), dump count dominos to feed partner points
+        if winning_d.value() > 0:
+            count_plays = [d for d in valid if Domino(d).value() > 0]
+            if count_plays:
+                return min(count_plays, key=lambda d: Domino(d).value())
+        # Otherwise dump the weakest domino
+        return min(valid, key=lambda d: max(d[0], d[1]))
     else:
-        # Try to win
+        # Trying to win — don't play the HIGHEST trump, play the LOWEST trump that still beats
         trump_plays = [d for d in valid if trump is not None and Domino(d).contains(trump)]
         if trump_plays:
-            return max(trump_plays, key=lambda d: Domino(d).low_side(trump=trump))
+            # Find the current winning trump value
+            if winning_d.contains(trump):
+                winning_trump_val = winning_d.low_side(trump=trump)
+            else:
+                winning_trump_val = -1
+
+            # Among trump plays, find the cheapest that still wins
+            winning_trumps = [d for d in trump_plays
+                              if Domino(d).low_side(trump=trump) > winning_trump_val]
+            if winning_trumps:
+                return min(winning_trumps, key=lambda d: Domino(d).low_side(trump=trump))
+            # Can't beat with trump — try to win with lead suit instead
+            lead_plays  = [d for d in valid if Domino(d).contains(lead_suit)
+                           and (trump is None or not Domino(d).contains(trump))]
+            if lead_plays:
+                return max(lead_plays, key=lambda d: Domino(d).low_side(lead_suit=lead_suit))
+
+        # Try lead suit
         lead_plays  = [d for d in valid if Domino(d).contains(lead_suit)
                        and (trump is None or not Domino(d).contains(trump))]
         if lead_plays:
             return max(lead_plays, key=lambda d: Domino(d).low_side(lead_suit=lead_suit))
-        # Off-suit — dump lowest count or lowest pip
+
+        # Can't win — dump lowest-value domino
         non_count = [d for d in valid if Domino(d).value() == 0]
         if non_count:
             return min(non_count, key=lambda d: max(d[0], d[1]))
@@ -777,27 +847,9 @@ def create_app(test_config=None):
             if hb in room.bots:
                 _schedule_bot(room.room_id)
 
-    # ------------------------------------------------------------------ HTTP
-
-    @app.route("/")
-    @app.route("/join/<room_id>")
-    def index(**_):
-        resp = make_response(send_from_directory(app.static_folder, "index.html"))
-        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        resp.headers["Pragma"] = "no-cache"
-        resp.headers["Expires"] = "0"
-        return resp
-
-    @app.route("/api/fill-bots/<room_id>")
-    def fill_bots(room_id):
-        """Fill empty seats with bots and start the game."""
-        room_id = room_id.strip().upper()
-        if room_id not in _rooms:
-            return {"ok": False, "error": "Room not found"}, 404
-        room = _rooms[room_id]
-        if room.phase != "waiting":
-            return {"ok": False, "error": "Game already started"}, 400
-
+    # Helper to fill bots and start game
+    def _fill_bots_for_room(room_id: str, room: GameRoom):
+        """Fill empty seats with bots and start the game if all seats filled."""
         bot_names = ["Bot-Alpha", "Bot-Beta", "Bot-Gamma"]
         added = []
         bi = 0
@@ -806,8 +858,6 @@ def create_app(test_config=None):
             pnum, err = room.add_bot(bot_sid, bot_names[bi])
             if err:
                 break
-            # NOTE: do NOT call sio_join_room for bots — they have no real socket
-            # and join_room requires an active SocketIO request context.
             added.append({"num": pnum, "name": bot_names[bi]})
             sio.emit("player_joined", {
                 "player_num": pnum, "name": bot_names[bi],
@@ -834,6 +884,30 @@ def create_app(test_config=None):
             if room.bid_turn in room.bots:
                 _schedule_bot(room_id)
 
+        return added
+
+    # ------------------------------------------------------------------ HTTP
+
+    @app.route("/")
+    @app.route("/join/<room_id>")
+    def index(**_):
+        resp = make_response(send_from_directory(app.static_folder, "index.html"))
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
+
+    @app.route("/api/fill-bots/<room_id>")
+    def fill_bots(room_id):
+        """Fill empty seats with bots and start the game."""
+        room_id = room_id.strip().upper()
+        if room_id not in _rooms:
+            return {"ok": False, "error": "Room not found"}, 404
+        room = _rooms[room_id]
+        if room.phase != "waiting":
+            return {"ok": False, "error": "Game already started"}, 400
+
+        added = _fill_bots_for_room(room_id, room)
         return {"ok": True, "added": added, "total": len(room.players)}
 
     @app.route("/health")
@@ -936,6 +1010,35 @@ def create_app(test_config=None):
                 "plunge": plunge,
             },
         })
+
+    @sio.on("quick_play")
+    def on_quick_play(data):
+        """Create a room and immediately fill it with 3 bots."""
+        name = (data.get("name") or "Player").strip() or "Player"
+        game_mode = data.get("game_mode", "marks_7")
+        if game_mode not in ("points_250", "marks_7"):
+            game_mode = "marks_7"
+
+        room_id = _unique_room_id()
+        room = GameRoom(room_id, game_mode)
+        _rooms[room_id] = room
+
+        pnum, _ = room.add_player(request.sid, name)
+        sio_join_room(room_id)
+        logger.info("quick_play room %s created by %s (P%s) mode=%s", room_id, name, pnum, game_mode)
+
+        emit("room_joined", {
+            "room_id": room_id, "player_num": pnum, "name": name,
+            "game_mode": game_mode, "state": room.get_state(pnum),
+            "settings": {
+                "bid_timer": 0, "chat_mode": "emoji",
+                "allow_spectators": True, "marks_target": 7,
+                "nelo": False, "plunge": False,
+            },
+        })
+
+        # Auto-fill with bots
+        _fill_bots_for_room(room_id, room)
 
     @sio.on("join_game")
     def on_join_game(data):

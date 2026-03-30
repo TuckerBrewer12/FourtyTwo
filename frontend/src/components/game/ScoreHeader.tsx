@@ -202,6 +202,21 @@ export default function ScoreHeader() {
           </span>
         )}
         <button
+          onClick={() => useGameStore.setState({ statsOpen: true })}
+          style={{
+            width: isMobile ? 32 : 36, height: isMobile ? 32 : 36, borderRadius: '50%',
+            background: 'var(--surface-soft)',
+            border: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: isMobile ? '.8rem' : '1rem', cursor: 'pointer',
+            boxShadow: 'var(--shadow-neu-sm)',
+            flexShrink: 0,
+          }}
+          title="Stats"
+        >
+          📊
+        </button>
+        <button
           onClick={() => useGameStore.setState({ settingsModalOpen: true })}
           style={{
             width: isMobile ? 32 : 36, height: isMobile ? 32 : 36, borderRadius: '50%',

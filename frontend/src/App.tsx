@@ -14,6 +14,7 @@ import TrumpModal      from './components/modals/TrumpModal'
 import HandResultModal from './components/modals/HandResultModal'
 import RulesModal      from './components/modals/RulesModal'
 import SettingsModal   from './components/modals/SettingsModal'
+import StatsPanel      from './components/game/StatsPanel'
 
 import ChatPanel  from './components/chat/ChatPanel'
 import ChatToggle from './components/chat/ChatToggle'
@@ -74,6 +75,7 @@ export default function App() {
       <HandResultModal />
       <RulesModal />
       <SettingsModal />
+      <StatsPanel />
 
       {/* Chat — only during game */}
       {isGame && <ChatPanel />}

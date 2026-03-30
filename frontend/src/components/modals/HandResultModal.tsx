@@ -49,23 +49,41 @@ export default function HandResultModal() {
           </h3>
         </div>
 
-        {/* Made/Set badge */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+        {/* Big dramatic MADE/SET display */}
+        <div style={{
+          textAlign: 'center',
+          marginBottom: '1rem',
+          padding: '1rem',
+          borderRadius: 'var(--radius-lg)',
+          background: d.made
+            ? 'linear-gradient(135deg, rgba(34,197,94,.12), rgba(16,185,129,.06))'
+            : 'linear-gradient(135deg, rgba(239,68,68,.12), rgba(185,28,28,.06))',
+          border: `2px solid ${d.made ? 'rgba(34,197,94,.3)' : 'rgba(239,68,68,.3)'}`,
+          animation: d.made ? 'madeGlow 1.5s ease-in-out infinite' : 'setShake 0.5s ease .2s',
+        }}>
           <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '.5rem',
-            borderRadius: '20px',
-            padding: '.4rem 1.1rem',
-            fontSize: '1rem',
-            fontWeight: 800,
-            background: d.made ? 'rgba(34,197,94,.1)' : 'rgba(239,68,68,.1)',
-            color: d.made ? 'var(--success)' : 'var(--danger)',
-            border: `1.5px solid ${d.made ? 'rgba(34,197,94,.35)' : 'rgba(239,68,68,.35)'}`,
-            animation: d.made ? 'madeGlow 1.5s ease-in-out infinite' : 'setShake 0.5s ease .3s',
+            fontSize: '2.5rem',
+            lineHeight: 1,
+            marginBottom: '.3rem',
           }}>
-            <span style={{ fontSize: '1.3rem' }}>{d.made ? '✅' : '💥'}</span>
-            {d.made ? 'Bid Made!' : 'Set!'}
+            {d.made ? '🎉' : '💥'}
+          </div>
+          <div style={{
+            fontSize: '1.6rem',
+            fontWeight: 900,
+            color: d.made ? 'var(--success)' : 'var(--danger)',
+            letterSpacing: '.05em',
+            textTransform: 'uppercase',
+          }}>
+            {d.made ? 'MADE IT!' : 'SET!'}
+          </div>
+          <div style={{
+            fontSize: '.78rem',
+            color: 'var(--text-muted)',
+            marginTop: '.2rem',
+            fontWeight: 600,
+          }}>
+            T{d.bid_team} bid {bidStr} {d.high_marks > 1 ? `for ${d.high_marks} marks` : ''}
           </div>
         </div>
 
@@ -74,17 +92,11 @@ export default function HandResultModal() {
           <div style={{
             textAlign: 'center',
             marginBottom: '.75rem',
-            padding: '.4rem',
-            borderRadius: 10,
-            background: myTeamWon
-              ? 'linear-gradient(135deg, rgba(34,197,94,.1), rgba(22,163,74,.05))'
-              : 'linear-gradient(135deg, rgba(239,68,68,.08), rgba(185,28,28,.04))',
-            border: `1px solid ${myTeamWon ? 'rgba(34,197,94,.2)' : 'rgba(239,68,68,.15)'}`,
-            fontSize: '.85rem',
-            fontWeight: 700,
-            color: myTeamWon ? 'var(--success)' : 'var(--danger)',
+            fontSize: '1rem',
+            fontWeight: 800,
+            color: myTeamWon ? 'var(--success)' : 'var(--text-muted)',
           }}>
-            {myTeamWon ? '🏆 Your team won this hand!' : '😤 Better luck next hand!'}
+            {myTeamWon ? '🏆 Your team takes it!' : '😤 You\'ll get em next time'}
           </div>
         )}
 
