@@ -117,8 +117,28 @@ def _safe_hand_len(game, pnum: int) -> int:
         return 7
 
 
-def _compute_available_bids(room) -> list:
-    """Return legally biddable values for the current bidder (excludes 0/42/pass)."""
+def _hand_decided(room) -> bool:
+    """Return True if the hand outcome is already determined before all 7 tricks are played."""
+    g = room.game
+    if g._high_bidder is None:
+        return False
+    t1, t2    = g.get_team_scores()
+    high_bid  = g._high_bid
+    bid_team  = 1 if g._high_bidder in (1, 3) else 2
+    bid_score = t1 if bid_team == 1 else t2
+    opp_score = t2 if bid_team == 1 else t1
+    remaining = 42 - t1 - t2
+
+    if high_bid == 0:    # Low: fail as soon as bid team scores a count domino (> 7 trick pts)
+        return bid_score > 7
+    if high_bid == 42:   # Slam: impossible the moment opponent scores any points
+        return opp_score > 0
+    # Normal bid (30–41): secured once bid_score reaches target, or impossible if math says so
+    return bid_score >= high_bid or (bid_score + remaining) < high_bid
+
+
+def _compute_available_bids(room) -> list[int]:
+    """Returns the list of legally biddable values for the current bidder."""
     if not room.game or room.phase != "bidding":
         return []
     hb = room.game._high_bid
@@ -869,8 +889,8 @@ def create_app(test_config=None):
             room.start_hand()
             # Emit game_started only to real (non-bot) players
             for p, s in room.sid_by_num.items():
-                if p in room.bots:
-                    continue  # bots have no real socket connections
+                if s.startswith("bot-"):
+                    continue  # bots have no real socket connection
                 sio.emit("game_started", {
                     "state": room.get_state(p),
                     "seat_map": _compute_seat_map(p),
@@ -1270,7 +1290,8 @@ def create_app(test_config=None):
                 "team2_total": room.team2_total,
                 "trick_count": room.trick_count,
             }, room=room.room_id)
-            if room.trick_count == 7 or room._is_hand_decided():
+
+            if room.trick_count == 7 or _hand_decided(room):
                 room.finish_hand(sio)
             else:
                 _push_turn(room)
