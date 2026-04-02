@@ -30,7 +30,7 @@ export default function ScoreHeader() {
     myPNum: s.myPNum,
   })))
   const gs = gameState
-  const clock = useClock()
+  useClock()
 
   const t1 = gs?.team1_score ?? 0
   const t2 = gs?.team2_score ?? 0

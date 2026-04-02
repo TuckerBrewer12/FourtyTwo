@@ -834,11 +834,20 @@ def create_app(test_config=None):
         hbid = room.game._high_bid
         hm  = room.game._high_marks
 
-        if hb is None:          # all passed → dealer forced bid 30
-            hb   = room.dealer % 4 + 1
-            hbid = 30
-            hm   = 1
-            room.game.set_forced_bid(hb, hbid, hm)
+        if hb is None:          # all passed → reshuffle and redeal
+            room.hand_num += 1
+            room.start_hand()
+            sio.emit("reshuffle", {
+                "message": "Everyone passed — reshuffling!",
+                "state": room.get_state(),
+            }, room=room.room_id)
+            for p, s in room.sid_by_num.items():
+                if s.startswith("bot-"):
+                    continue
+                sio.emit("game_state", {"state": room.get_state(p)}, room=s)
+            if room.bid_turn in room.bots:
+                _schedule_bot(room.room_id)
+            return
 
         room.first_move = hb
         room.play_turn  = hb

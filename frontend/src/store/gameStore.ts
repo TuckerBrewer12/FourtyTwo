@@ -37,15 +37,6 @@ let toastCounter = 0;
 let biddingTimer: ReturnType<typeof setInterval> | null = null;
 let scorePopCounter = 0;
 
-// Apply persisted settings immediately on load
-const _initSettings = loadSettings();
-if (!_initSettings.richAnimations) {
-  document.body.classList.add('no-anim');
-}
-if (_initSettings.darkMode) {
-  document.documentElement.setAttribute('data-theme', 'dark');
-}
-
 // --- Persisted settings helpers ---
 const SETTINGS_KEY = 'fortytwo_settings';
 
@@ -75,6 +66,15 @@ function loadSettings(): PersistedSettings {
 
 function saveSettings(s: PersistedSettings) {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch { /* ignore */ }
+}
+
+// Apply persisted settings immediately on load (must come after SETTINGS_KEY and DEFAULT_SETTINGS)
+const _initSettings = loadSettings();
+if (!_initSettings.richAnimations) {
+  document.body.classList.add('no-anim');
+}
+if (_initSettings.darkMode) {
+  document.documentElement.setAttribute('data-theme', 'dark');
 }
 
 function clearBiddingTimer() {
@@ -406,9 +406,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     socket.on('bid_placed', (d: BidPlacedPayload) => {
       playSound('bidPlace');
       const bidStr = d.bid === -1 ? 'passed'
-        : d.bid === 0  ? `bid Low (${d.marks}m)`
-        : d.bid === 42 ? `bid 42 (${d.marks}m)`
-        : `bid ${d.bid}`;
+        : d.bid === 0 ? `bid Low (${d.marks}m)`
+          : d.bid === 42 ? `bid 42 (${d.marks}m)`
+            : `bid ${d.bid}`;
       get().addToast(`P${d.player_num} ${bidStr}`);
       set(s => ({
         statusMsg: `Bidding — P${d.bid_turn}'s turn`,
@@ -446,10 +446,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       playSound('trumpSet');
       hapticMedium();
       clearBiddingTimer();
-      const SUIT_NAMES = ['Blanks','Aces','Deuces','Threes','Fours','Fives','Sixes','Doubles'];
+      const SUIT_NAMES = ['Blanks', 'Aces', 'Deuces', 'Threes', 'Fours', 'Fives', 'Sixes', 'Doubles'];
       const tn = d.trump === null ? 'No Trump'
         : d.trump === 7 ? 'Doubles (all doubles are trump)'
-        : `${SUIT_NAMES[d.trump]}s (${d.trump})`;
+          : `${SUIT_NAMES[d.trump]}s (${d.trump})`;
       get().addToast(`Trump: ${tn}`);
       // Show trump reveal animation
       if (d.trump !== null) {
@@ -574,7 +574,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
 
     socket.on('hand_complete', (d: HandCompletePayload) => {
-      const myTeam = get().myPNum ? (get().myPNum % 2 === 1 ? 1 : 2) : 0;
+      const pnum = get().myPNum; const myTeam = pnum ? (pnum % 2 === 1 ? 1 : 2) : 0;
       if (d.game_over) {
         playSound(d.winner_team === myTeam ? 'gameWin' : 'gameLose');
         if (d.winner_team === myTeam) {
@@ -632,6 +632,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (pp) {
         set(s => ({ myHand: [...s.myHand, pp], pendingPlay: null, myTurn: true }));
       }
+    });
+
+    socket.on('reshuffle', (d: { message: string; state: GameState }) => {
+      get().addToast(d.message, 'info');
+      set({ gameState: d.state, statusMsg: d.message });
     });
 
     socket.on('game_abandoned', (d: GameAbandonedPayload) => {
