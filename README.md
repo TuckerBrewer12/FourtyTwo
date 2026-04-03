@@ -1,16 +1,11 @@
 # FourtyTwo
-
-[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live%20Demo-gold?logo=github)](https://tuckerbrewer12.github.io/FourtyTwo/)
-[![MIT License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)](https://python.org)
-
 **Live Demo:** https://tuckerbrewer12.github.io/FourtyTwo/
 
-A real-time multiplayer implementation of **42**, the classic Texas domino trick-and-trump game invented in 1885. Think Spades, but played with dominoes — four players, two teams, bidding, trump, and 42 points on the line every hand.
+A multiplayer implementation of **42**, an East Texas domino game. Similar to Spades but with dominoes — four players, two teams, bidding, and trumps.
 
 ---
 
-<!-- screenshot -->
+<img width="2850" height="1716" alt="image" src="https://github.com/user-attachments/assets/102a7a75-eeb1-4cca-94a0-59154d3023a3" />
 
 ---
 
@@ -18,8 +13,8 @@ A real-time multiplayer implementation of **42**, the classic Texas domino trick
 
 ### Scoring
 - 7 tricks per hand, worth **1 point each**
-- Dominoes whose pips sum to a multiple of 5 carry **bonus points** (e.g. `[5|0]` = 5pts, `[6|4]` = 10pts)
-- **42 total points** per hand (7 trick-points + 35 pip-points)
+- Dominoes whose numbers sum to a multiple of 5 carry **bonus points** (e.g. `[5|0]` = 5pts, `[6|4]` = 10pts)
+- **42 total points** per hand (7 trick-points + 35 possible-points)
 
 ### Bidding
 - Players bid 30–42; highest bidder names trump for the hand
@@ -29,8 +24,13 @@ A real-time multiplayer implementation of **42**, the classic Texas domino trick
 ### Trick Play
 - Must follow suit (lead domino's high side) if able
 - Trump beats all; doubles are the highest domino of their suit
-- First to 250 points or 7 marks wins the game
+- First 7 marks wins the game
+  
+---
 
+## Teams
+- **Team 1:** Players 1 & 3
+- **Team 2:** Players 2 & 4
 ---
 
 ## Quick Start
@@ -68,18 +68,3 @@ FourtyTwo/
 │
 └── test_*.py               # Unit + integration + stress tests
 ```
-
----
-
-## Tests
-
-```bash
-python -m unittest discover -v
-```
-
----
-
-## Teams
-
-- **Team 1 (N/S):** Players 1 & 3
-- **Team 2 (E/W):** Players 2 & 4
