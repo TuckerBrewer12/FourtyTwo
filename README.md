@@ -53,10 +53,19 @@ FourtyTwo/
 ├── domino.py               # Domino class: comparison, pip value, suit logic
 ├── domino_set.py           # Full 28-domino set: shuffle & deal
 ├── player.py               # Hand management, move validation
+├── console_game.py         # Local CLI game runner
+│
+├── frontend/               # React/TypeScript SPA (source)
+│   └── src/
+│
 ├── server/
 │   ├── fourty_two_socketio_server.py  # Flask-SocketIO multiplayer server
-│   └── templates/index.html           # Game frontend (vanilla JS SPA)
+│   └── static/                        # Built frontend served by Flask
+│
 ├── docs/                   # Static GitHub Pages landing page
+├── Dockerfile              # Container build
+├── Procfile / railway.json # Railway deploy config
+│
 └── test_*.py               # Unit + integration + stress tests
 ```
 
