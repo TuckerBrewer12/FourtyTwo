@@ -506,7 +506,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       hapticLight();
       set(s => ({
         pendingPlay: null,
-        gameState: s.gameState ? { ...s.gameState, trick: d.trick } : s.gameState,
+        gameState: s.gameState ? {
+          ...s.gameState,
+          trick: d.trick,
+          tile_counts: {
+            ...s.gameState.tile_counts,
+            [d.player_num]: Math.max(0, (s.gameState.tile_counts?.[d.player_num] ?? 1) - 1),
+          },
+        } : s.gameState,
       }));
     });
 
