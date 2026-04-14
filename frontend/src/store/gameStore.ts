@@ -331,7 +331,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     socket.on('player_joined', (d: PlayerJoinedPayload) => {
       set(s => ({ gameState: d.state ?? s.gameState }));
-      get().addToast(`${d.name} (P${d.player_num}) joined`);
+      get().addToast(`${d.name} joined`);
     });
 
     socket.on('room_full', (d: RoomFullPayload) => {
@@ -396,9 +396,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
         n--;
         if (n <= 0) {
           clearBiddingTimer();
+          const bidderName = d.state.players?.[d.state.bid_turn] ?? `P${d.state.bid_turn}`;
           set({
             biddingCountdown: null,
-            statusMsg: `Hand ${d.state.hand_num} — Bidding starts with P${d.state.bid_turn}`,
+            statusMsg: `Hand ${d.state.hand_num} — Bidding starts with ${bidderName}`,
           });
           // Only open if still in bidding phase and this player's turn
           const gs = get().gameState;
@@ -418,9 +419,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         : d.bid === 0 ? `bid Low (${d.marks}m)`
           : d.bid === 42 ? `bid 42 (${d.marks}m)`
             : `bid ${d.bid}`;
-      get().addToast(`P${d.player_num} ${bidStr}`);
+      const bidderName = get().gameState?.players?.[d.player_num] ?? `P${d.player_num}`;
+      const nextName   = get().gameState?.players?.[d.bid_turn]   ?? `P${d.bid_turn}`;
+      get().addToast(`${bidderName} ${bidStr}`);
       set(s => ({
-        statusMsg: `Bidding — P${d.bid_turn}'s turn`,
+        statusMsg: `Bidding — ${nextName}'s turn`,
         gameState: s.gameState ? {
           ...s.gameState,
           high_bid: d.high_bid,
@@ -438,16 +441,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
       clearBiddingTimer();
       const bs = d.high_bid === 0 ? `Low (${d.high_marks}m)`
         : d.high_bid === 42 ? `42 (${d.high_marks}m)` : `${d.high_bid}`;
-      get().addToast(`P${d.high_bidder} won the bid: ${bs}`);
+      const winnerName = (d.state ?? get().gameState)?.players?.[d.high_bidder] ?? `P${d.high_bidder}`;
+      get().addToast(`${winnerName} won the bid: ${bs}`);
       const { myPNum, isSpectator } = get();
       set({ gameState: d.state ?? get().gameState });
-      // Low bid (0) has no trump — server skips trump selection automatically
       if (d.high_bid === 0) {
-        set({ statusMsg: `P${d.high_bidder} bid Low — no trump!` });
+        set({ statusMsg: `${winnerName} bid Low — no trump!` });
       } else if (!isSpectator && d.high_bidder === myPNum) {
         set({ trumpModalOpen: true, statusMsg: 'You won the bid — select trump!' });
       } else {
-        set({ statusMsg: `P${d.high_bidder} is selecting trump…` });
+        set({ statusMsg: `${winnerName} is selecting trump…` });
       }
     });
 
@@ -465,10 +468,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         set({ trumpRevealSuit: d.trump });
         setTimeout(() => set({ trumpRevealSuit: null }), 2200);
       }
+      const leaderName = (d.state ?? get().gameState)?.players?.[d.first_move] ?? `P${d.first_move}`;
       set({
         gameState: d.state ?? get().gameState,
         trumpModalOpen: false,
-        statusMsg: `P${d.first_move} leads the first trick`,
+        statusMsg: `${leaderName} leads the first trick`,
       });
     });
 
@@ -493,7 +497,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         myTurn: false,
         validPlays: [],
         seatMap: d.seat_map ?? get().seatMap,
-        statusMsg: `Waiting for ${nm} (P${d.play_turn}) to play…`,
+        statusMsg: `Waiting for ${nm} to play…`,
       });
     });
 
