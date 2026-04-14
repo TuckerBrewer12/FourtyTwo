@@ -5,7 +5,7 @@ import { hapticLight, hapticMedium, hapticSuccess, hapticError } from '../utils/
 import type {
   Screen, GameState, GameMode, Domino, SeatMap,
   RoomJoinedPayload, PlayerJoinedPayload, RoomFullPayload,
-  SpectatorConfirmedPayload, GameStartedPayload,
+  SpectatorConfirmedPayload, GameStartedPayload, TeamUpdatedPayload,
   BidPlacedPayload, BiddingCompletePayload, TrumpSetPayload,
   YourTurnPayload, WaitingPayload, DominoPlayedPayload,
   TrickCompletePayload, HandCompletePayload, GameAbandonedPayload,
@@ -171,6 +171,7 @@ interface GameStore {
   emitPlay: (domino: Domino) => void;
   emitNewHand: () => void;
   emitChat: (msg: string) => void;
+  emitChooseTeam: (team: 1 | 2) => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -354,7 +355,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     socket.on('spectator_left', (d: { name: string }) =>
       get().addToast(`${d.name} stopped spectating`, 'info'));
 
+    socket.on('team_updated', (d: TeamUpdatedPayload) => {
+      set(s => ({
+        gameState: s.gameState ? { ...s.gameState, team_selections: d.team_selections } : d.state,
+      }));
+    });
+
     socket.on('game_started', (d: GameStartedPayload) => {
+      // Update myPNum if server rearranged seats after team selection
+      if (d.player_num != null) set({ myPNum: d.player_num });
       const { myPNum, isSpectator } = get();
       const hand = d.state.hand ?? [];
       const shouldBid = !isSpectator && d.state.phase === 'bidding' && d.state.bid_turn === myPNum;
@@ -705,5 +714,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   emitChat: (msg) => {
     get().socket?.emit('send_chat', { room_id: get().myRoom, message: msg });
+  },
+
+  emitChooseTeam: (team) => {
+    get().socket?.emit('choose_team', { room_id: get().myRoom, team });
   },
 }))

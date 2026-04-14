@@ -372,6 +372,9 @@ class GameRoom:
         self.sid_by_num: dict = {}   # player_num(1-4) → sid
         self.names:      dict = {}   # player_num → display name
 
+        # Team selection (waiting phase) — player_num → 1 or 2
+        self.team_selections: dict = {}
+
         # Bots
         self.bots: set  = set()      # player nums that are bots
 
@@ -445,6 +448,14 @@ class GameRoom:
     def all_players_present(self) -> bool:
         return len(self.players) == 4
 
+    def teams_ready(self) -> bool:
+        """All 4 players present and each team has exactly 2 players."""
+        if len(self.players) < 4:
+            return False
+        t1 = sum(1 for t in self.team_selections.values() if t == 1)
+        t2 = sum(1 for t in self.team_selections.values() if t == 2)
+        return t1 == 2 and t2 == 2
+
     # ------------------------------------------------------------------
     def start_hand(self):
         self.game.reset_hand()
@@ -499,6 +510,7 @@ class GameRoom:
             "chat_history":   self.chat_history[-30:],
             "hand_history":   self.hand_history[-5:],
             "team_map":       {1: 1, 2: 2, 3: 1, 4: 2},
+            "team_selections": self.team_selections,
             "tile_counts":    {p: _safe_hand_len(self.game, p) for p in range(1, 5)},
             "available_bids": _compute_available_bids(self),
             "total_tricks":   7,
@@ -876,9 +888,52 @@ def create_app(test_config=None):
             if hb in room.bots:
                 _schedule_bot(room.room_id)
 
+    # Helper: rearrange player numbers by team choice, then start the hand
+    def _finalize_and_start(room_id: str, room: GameRoom, _sio):
+        """Reassign player numbers so team1→{1,3}, team2→{2,4}, then start."""
+        t1 = [pnum for pnum, t in room.team_selections.items() if t == 1]
+        t2 = [pnum for pnum, t in room.team_selections.items() if t == 2]
+        new_assignment = {t1[0]: 1, t2[0]: 2, t1[1]: 3, t2[1]: 4}
+
+        old_sid_by_num = dict(room.sid_by_num)
+        old_names      = dict(room.names)
+        old_bots       = set(room.bots)
+
+        room.players        = {}
+        room.sid_by_num     = {}
+        room.names          = {}
+        room.bots           = set()
+        room.team_selections = {}
+
+        for old_pnum, new_pnum in new_assignment.items():
+            sid  = old_sid_by_num[old_pnum]
+            name = old_names[old_pnum]
+            room.players[sid]       = {"num": new_pnum, "name": name}
+            room.sid_by_num[new_pnum] = sid
+            room.names[new_pnum]    = name
+            if old_pnum in old_bots:
+                room.bots.add(new_pnum)
+
+        room.start_hand()
+        for p, s in room.sid_by_num.items():
+            if s.startswith("bot-"):
+                continue
+            _sio.emit("game_started", {
+                "player_num": p,
+                "state": room.get_state(p),
+                "seat_map": _compute_seat_map(p),
+            }, room=s)
+        for s in room.spectators:
+            _sio.emit("game_started", {
+                "state": room.get_state(),
+                "seat_map": _SPECTATOR_SEAT_MAP,
+            }, room=s)
+        if room.bid_turn in room.bots:
+            _schedule_bot(room_id)
+
     # Helper to fill bots and start game
     def _fill_bots_for_room(room_id: str, room: GameRoom):
-        """Fill empty seats with bots and start the game if all seats filled."""
+        """Fill empty seats with bots, auto-assign all to teams, then start."""
         bot_names = ["Bot-Alpha", "Bot-Beta", "Bot-Gamma"]
         added = []
         bi = 0
@@ -895,23 +950,14 @@ def create_app(test_config=None):
             bi += 1
 
         if room.all_players_present():
-            room.start_hand()
-            # Emit game_started only to real (non-bot) players
-            for p, s in room.sid_by_num.items():
-                if s.startswith("bot-"):
-                    continue  # bots have no real socket connection
-                sio.emit("game_started", {
-                    "state": room.get_state(p),
-                    "seat_map": _compute_seat_map(p),
-                }, room=s)
-            for s in room.spectators:
-                sio.emit("game_started", {
-                    "state": room.get_state(),
-                    "seat_map": _SPECTATOR_SEAT_MAP,
-                }, room=s)
-            # Kick off bots if first bidder is a bot
-            if room.bid_turn in room.bots:
-                _schedule_bot(room_id)
+            # Auto-assign all unselected players (bots + any humans without a pick)
+            all_pnums = sorted(room.sid_by_num.keys())
+            for pnum in all_pnums:
+                if pnum not in room.team_selections:
+                    t1 = sum(1 for t in room.team_selections.values() if t == 1)
+                    t2 = sum(1 for t in room.team_selections.values() if t == 2)
+                    room.team_selections[pnum] = 1 if t1 <= t2 else 2
+            _finalize_and_start(room_id, room, sio)
 
         return added
 
@@ -1102,20 +1148,40 @@ def create_app(test_config=None):
             "game_mode": room.game_mode, "state": room.get_state(pnum),
         })
 
-        if room.all_players_present():
-            room.start_hand()
-            for p, s in room.sid_by_num.items():
-                sio.emit("game_started", {
-                    "state": room.get_state(p),
-                    "seat_map": _compute_seat_map(p),
-                }, room=s)
-            for s in room.spectators:
-                sio.emit("game_started", {
-                    "state": room.get_state(),
-                    "seat_map": _SPECTATOR_SEAT_MAP,
-                }, room=s)
-            if room.bid_turn in room.bots:
-                _schedule_bot(room_id)
+        # Game starts only once all 4 players have chosen teams (handled by choose_team event)
+
+    @sio.on("choose_team")
+    def on_choose_team(data):
+        room_id = (data.get("room_id") or "").strip().upper()
+        team    = data.get("team")
+
+        if room_id not in _rooms:
+            emit("error", {"message": "Room not found"}); return
+        room = _rooms[room_id]
+
+        pnum = room.get_player_num(request.sid)
+        if pnum is None:
+            emit("error", {"message": "Not in this room"}); return
+        if team not in (1, 2):
+            emit("error", {"message": "Invalid team"}); return
+
+        # Toggle: clicking your current team removes you from it
+        if room.team_selections.get(pnum) == team:
+            del room.team_selections[pnum]
+        else:
+            # Check capacity
+            count = sum(1 for t in room.team_selections.values() if t == team)
+            if count >= 2:
+                emit("error", {"message": f"Team {team} is full"}); return
+            room.team_selections[pnum] = team
+
+        sio.emit("team_updated", {
+            "team_selections": room.team_selections,
+            "state": room.get_state(),
+        }, room=room_id)
+
+        if room.teams_ready():
+            _finalize_and_start(room_id, room, sio)
 
     @sio.on("join_spectator")
     def on_join_spectator(data):
