@@ -856,7 +856,15 @@ def create_app(test_config=None):
             for p, s in room.sid_by_num.items():
                 if s.startswith("bot-"):
                     continue
-                sio.emit("game_state", {"state": room.get_state(p)}, room=s)
+                sio.emit("game_started", {
+                    "state": room.get_state(p),
+                    "seat_map": _compute_seat_map(p),
+                }, room=s)
+            for s in room.spectators:
+                sio.emit("game_started", {
+                    "state": room.get_state(),
+                    "seat_map": _SPECTATOR_SEAT_MAP,
+                }, room=s)
             if room.bid_turn in room.bots:
                 _schedule_bot(room.room_id)
             return
