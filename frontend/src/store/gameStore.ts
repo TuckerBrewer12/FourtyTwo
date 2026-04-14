@@ -480,25 +480,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
       playSound('yourTurn');
       hapticLight();
       clearBiddingTimer();
-      set({
-        myHand: d.hand ?? get().myHand,
+      set(s => ({
+        myHand: d.hand ?? s.myHand,
         myTurn: true,
         validPlays: d.valid_plays ?? [],
-        seatMap: d.seat_map ?? get().seatMap,
+        seatMap: d.seat_map ?? s.seatMap,
         statusMsg: '🎯 Your turn — tap a domino to play!',
-      });
+        gameState: s.gameState ? { ...s.gameState, play_turn: d.play_turn } : s.gameState,
+      }));
     });
 
     socket.on('waiting', (d: WaitingPayload) => {
-      const gs = get().gameState;
-      const nm = gs?.players?.[d.play_turn] ?? `P${d.play_turn}`;
-      set({
-        myHand: d.hand ?? get().myHand,
+      const nm = get().gameState?.players?.[d.play_turn] ?? `P${d.play_turn}`;
+      set(s => ({
+        myHand: d.hand ?? s.myHand,
         myTurn: false,
         validPlays: [],
-        seatMap: d.seat_map ?? get().seatMap,
+        seatMap: d.seat_map ?? s.seatMap,
         statusMsg: `Waiting for ${nm} to play…`,
-      });
+        gameState: s.gameState ? { ...s.gameState, play_turn: d.play_turn } : s.gameState,
+      }));
     });
 
     socket.on('domino_played', (d: DominoPlayedPayload) => {
@@ -506,6 +507,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       hapticLight();
       set(s => ({
         pendingPlay: null,
+        trickSweepSeat: null,
+        lastTrickWinner: null,
         gameState: s.gameState ? {
           ...s.gameState,
           trick: d.trick,
@@ -584,13 +587,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
         } : s.gameState,
       }));
       // Start sweep after 4th tile has landed (600ms delay)
-      setTimeout(() => set({ trickSweepSeat: winnerSeat }), 600);
+      setTimeout(() => set(s => ({ trickSweepSeat: s.gameState?.trick?.length === 4 ? winnerSeat : null })), 600);
       // Clear active trick display after sweep finishes (600 + 900 = 1500ms)
-      setTimeout(() => set(s => ({
-        lastTrickWinner: null,
-        trickSweepSeat: null,
-        gameState: s.gameState ? { ...s.gameState, trick: [] } : s.gameState,
-      })), 1500);
+      setTimeout(() => set(s => {
+        const currentTrick = s.gameState?.trick;
+        const shouldClear = currentTrick && currentTrick.length === 4;
+        return {
+          lastTrickWinner: null,
+          trickSweepSeat: null,
+          gameState: s.gameState ? { 
+            ...s.gameState, 
+            trick: shouldClear ? [] : (currentTrick ?? []) 
+          } : s.gameState,
+        };
+      }), 1500);
     });
 
     socket.on('hand_complete', (d: HandCompletePayload) => {
