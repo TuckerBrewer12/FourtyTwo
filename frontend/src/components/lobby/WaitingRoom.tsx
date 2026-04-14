@@ -5,7 +5,6 @@ function copyToClipboard(text: string): Promise<void> {
   if (navigator.clipboard && window.isSecureContext) {
     return navigator.clipboard.writeText(text)
   }
-  // Fallback for non-HTTPS (e.g. local IP access)
   const ta = document.createElement('textarea')
   ta.value = text
   ta.style.position = 'fixed'
@@ -19,16 +18,31 @@ function copyToClipboard(text: string): Promise<void> {
 }
 
 export default function WaitingRoom() {
-  const { gameState, myPNum, myRoom, addToast } = useGameStore(useShallow(s => ({
-    gameState: s.gameState,
-    myPNum:    s.myPNum,
-    myRoom:    s.myRoom,
-    addToast:  s.addToast,
+  const { gameState, myPNum, myRoom, addToast, emitChooseTeam } = useGameStore(useShallow(s => ({
+    gameState:      s.gameState,
+    myPNum:         s.myPNum,
+    myRoom:         s.myRoom,
+    addToast:       s.addToast,
+    emitChooseTeam: s.emitChooseTeam,
   })))
 
-  const players = gameState?.players ?? {}
-  const filled  = Object.keys(players).length
-  const inviteUrl = `${window.location.origin}/join/${myRoom}`
+  const players        = gameState?.players ?? {}
+  const teamSelections = gameState?.team_selections ?? {}
+  const filled         = Object.keys(players).length
+  const inviteUrl      = `${window.location.origin}/join/${myRoom}`
+  const myTeam         = myPNum != null ? teamSelections[myPNum] : undefined
+
+  // Build team rosters: team_selections maps player_num → 1|2
+  const team1Members = Object.entries(teamSelections)
+    .filter(([, t]) => t === 1)
+    .map(([p]) => Number(p))
+  const team2Members = Object.entries(teamSelections)
+    .filter(([, t]) => t === 2)
+    .map(([p]) => Number(p))
+
+  const t1Full = team1Members.length >= 2
+  const t2Full = team2Members.length >= 2
+  const allTeamsReady = t1Full && t2Full && filled === 4
 
   function copyCode() {
     copyToClipboard(myRoom ?? '').then(() => addToast('Room code copied!', 'success'))
@@ -42,7 +56,7 @@ export default function WaitingRoom() {
       .then(r => r.json())
       .then(d => {
         if (d.ok) {
-          addToast(`Added ${d.added.length} bot${d.added.length > 1 ? 's' : ''} — game starting!`, 'success')
+          addToast(`Added ${d.added.length} bot${d.added.length > 1 ? 's' : ''} — teams forming!`, 'success')
         } else {
           addToast(d.error || 'Failed to add bots', 'error')
         }
@@ -50,19 +64,122 @@ export default function WaitingRoom() {
       .catch(() => addToast('Failed to connect', 'error'))
   }
 
+  function handleTeamClick(team: 1 | 2) {
+    emitChooseTeam(team)
+  }
+
+  function TeamBox({ team }: { team: 1 | 2 }) {
+    const members  = team === 1 ? team1Members : team2Members
+    const isFull   = members.length >= 2
+    const onMyTeam = myTeam === team
+    const canJoin  = !onMyTeam && !isFull && myPNum != null
+
+    const color  = team === 1 ? '#3b82f6' : '#ef4444'
+    const bgCol  = team === 1 ? 'rgba(59,130,246,.08)' : 'rgba(239,68,68,.08)'
+    const border = team === 1 ? 'rgba(59,130,246,.3)' : 'rgba(239,68,68,.3)'
+    const label  = team === 1 ? 'Team 1' : 'Team 2'
+
+    return (
+      <div style={{
+        flex: 1, borderRadius: 'var(--radius-lg)',
+        border: `2px solid ${border}`,
+        background: bgCol,
+        padding: '1rem',
+        display: 'flex', flexDirection: 'column', gap: '.6rem',
+        minHeight: 160,
+      }}>
+        <div style={{
+          fontWeight: 800, fontSize: '.9rem', color,
+          textAlign: 'center', letterSpacing: '.05em', textTransform: 'uppercase',
+        }}>
+          {label}
+        </div>
+
+        {/* Slots */}
+        {[0, 1].map(slot => {
+          const pnum = members[slot]
+          const name = pnum != null ? players[pnum] : null
+          const isMe = pnum === myPNum
+          return (
+            <div key={slot} style={{
+              padding: '.6rem .75rem',
+              borderRadius: 'var(--radius)',
+              border: `1.5px ${name ? 'solid' : 'dashed'} ${name ? border : 'var(--border)'}`,
+              background: name ? (isMe ? `${color}22` : 'transparent') : 'transparent',
+              display: 'flex', alignItems: 'center', gap: '.5rem',
+              minHeight: 42,
+            }}>
+              {name ? (
+                <>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: '50%',
+                    background: `${color}22`, color,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 700, fontSize: '.8rem', flexShrink: 0,
+                  }}>
+                    {name[0].toUpperCase()}
+                  </div>
+                  <span style={{
+                    fontWeight: isMe ? 700 : 500, fontSize: '.85rem',
+                    color: isMe ? color : 'var(--text)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {name}{isMe ? ' (you)' : ''}
+                  </span>
+                </>
+              ) : (
+                <span style={{ fontSize: '.8rem', color: 'var(--text-faint)' }}>
+                  open slot
+                </span>
+              )}
+            </div>
+          )
+        })}
+
+        {/* Join / Leave button */}
+        {myPNum != null && (
+          onMyTeam ? (
+            <button onClick={() => handleTeamClick(team)} style={{
+              marginTop: 'auto', padding: '.45rem',
+              background: 'transparent', border: `1.5px solid ${border}`,
+              borderRadius: 'var(--radius-sm)', color,
+              fontSize: '.78rem', fontWeight: 600, cursor: 'pointer',
+            }}>
+              Leave
+            </button>
+          ) : canJoin ? (
+            <button onClick={() => handleTeamClick(team)} style={{
+              marginTop: 'auto', padding: '.45rem',
+              background: color, border: 'none',
+              borderRadius: 'var(--radius-sm)', color: '#fff',
+              fontSize: '.78rem', fontWeight: 700, cursor: 'pointer',
+            }}>
+              Join {label}
+            </button>
+          ) : isFull ? (
+            <div style={{ marginTop: 'auto', fontSize: '.75rem', color: 'var(--text-faint)', textAlign: 'center' }}>
+              Team full
+            </div>
+          ) : null
+        )}
+      </div>
+    )
+  }
+
   return (
     <div style={{
       position: 'fixed', inset: 0, background: 'var(--bg)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
     }}>
-      <div style={{ width: '100%', maxWidth: 460 }}>
+      <div style={{ width: '100%', maxWidth: 500 }}>
         <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
           <div style={{ fontSize: '3rem', fontWeight: 800, color: 'var(--accent)' }}>42</div>
         </div>
+
         <div style={{
           background: 'var(--surface)', borderRadius: 'var(--radius-lg)',
-          boxShadow: 'var(--shadow)', padding: '1.75rem',
-          border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '1.25rem',
+          boxShadow: 'var(--shadow)', padding: '1.5rem',
+          border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '1.1rem',
         }}>
           {/* Room code */}
           <div style={{ textAlign: 'center' }}>
@@ -79,25 +196,19 @@ export default function WaitingRoom() {
           </div>
 
           {/* Invite link */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
-            <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
-              Share Invite Link
-            </span>
-            <div style={{ display: 'flex', gap: '.4rem' }}>
-              <input readOnly value={inviteUrl} style={{
-                flex: 1, fontSize: '.78rem', padding: '.5rem .7rem',
-                background: 'var(--bg)', border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)',
-                outline: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }} />
-              <button onClick={copyUrl} style={{
-                padding: '.5rem .9rem', background: 'var(--bg)', border: '1.5px solid var(--border)',
-                borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: '.8rem', cursor: 'pointer', color: 'var(--text)',
-              }}>Copy</button>
-            </div>
+          <div style={{ display: 'flex', gap: '.4rem' }}>
+            <input readOnly value={inviteUrl} style={{
+              flex: 1, fontSize: '.78rem', padding: '.5rem .7rem',
+              background: 'var(--bg)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)',
+              outline: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }} />
+            <button onClick={copyUrl} style={{
+              padding: '.5rem .9rem', background: 'var(--bg)', border: '1.5px solid var(--border)',
+              borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: '.8rem', cursor: 'pointer', color: 'var(--text)',
+            }}>Copy</button>
           </div>
 
-          {/* Native share button */}
           {typeof navigator.share === 'function' && (
             <button onClick={() => {
               navigator.share({
@@ -111,64 +222,49 @@ export default function WaitingRoom() {
               color: '#fff', borderRadius: 'var(--radius)',
               fontWeight: 700, fontSize: '.88rem',
               border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.4rem',
-              boxShadow: '0 4px 16px rgba(0,109,91,.25)',
             }}>
-              📤 Share Invite Link
+              Share Invite Link
             </button>
           )}
 
-          {/* Player seats */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.6rem' }}>
-            {[1, 2, 3, 4].map(p => {
-              const name   = players[p]
-              const team   = (gameState?.team_map?.[p] ?? ({ 1: 1, 2: 2, 3: 1, 4: 2 } as Record<number, 1|2>)[p]) as 1 | 2
-              const isMe   = p === myPNum
-              const tColor = team === 1 ? 'var(--t1)' : 'var(--t2)'
-              const tBg    = team === 1 ? 'var(--t1-bg)' : 'var(--t2-bg)'
-              const tBdr   = team === 1 ? 'var(--t1-border)' : 'var(--t2-border)'
-              return (
-                <div key={p} style={{
-                  display: 'flex', alignItems: 'center', gap: '.6rem',
-                  padding: '.75rem', borderRadius: 'var(--radius)',
-                  border: `1.5px ${name ? 'solid' : 'dashed'} ${name ? (isMe ? 'var(--accent)' : tBdr) : 'var(--border)'}`,
-                  background: name ? (isMe ? 'var(--accent-light)' : tBg) : 'transparent',
-                  opacity: name ? 1 : .5,
-                }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontWeight: 700, fontSize: '.85rem',
-                    background: name ? (team === 1 ? 'rgba(59,130,246,.15)' : 'rgba(239,68,68,.15)') : 'var(--bg)',
-                    color: name ? tColor : 'var(--text-faint)',
-                    flexShrink: 0,
-                  }}>
-                    {name ? name[0].toUpperCase() : `P${p}`}
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{
-                      fontWeight: 600, fontSize: '.88rem',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      color: name ? 'var(--text)' : 'var(--text-faint)',
-                    }}>
-                      {name ? `${name}${isMe ? ' (you)' : ''}` : 'Waiting…'}
-                    </div>
-                    <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', marginTop: '.05rem' }}>
-                      {team === 1 ? '🔵 Team 1' : '🔴 Team 2'} · P{p}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          <p style={{ textAlign: 'center', fontSize: '.85rem', color: 'var(--text-muted)' }}>
-            {filled === 4
-              ? 'All players present — starting game!'
-              : `${filled}/4 players joined — waiting for ${4 - filled} more…`}
+          {/* Player count */}
+          <p style={{ textAlign: 'center', fontSize: '.85rem', color: 'var(--text-muted)', margin: 0 }}>
+            {filled < 4
+              ? `${filled}/4 players joined — waiting for ${4 - filled} more…`
+              : allTeamsReady
+                ? 'Teams locked — starting game!'
+                : 'All players present — choose your teams below'}
           </p>
 
-          {/* Quick Test — server-side bots, no popup issues */}
+          {/* Team selection */}
+          <div style={{ display: 'flex', gap: '.75rem' }}>
+            <TeamBox team={1} />
+            <TeamBox team={2} />
+          </div>
+
+          {/* Unassigned players (joined but no team yet) */}
+          {(() => {
+            const unassigned = Object.entries(players)
+              .map(([p]) => Number(p))
+              .filter(p => !teamSelections[p])
+            if (unassigned.length === 0) return null
+            return (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Waiting to pick:</span>
+                {unassigned.map(p => (
+                  <span key={p} style={{
+                    padding: '.2rem .55rem', borderRadius: 999,
+                    background: 'var(--bg)', border: '1px solid var(--border)',
+                    fontSize: '.78rem', color: 'var(--text)',
+                  }}>
+                    {players[p]}{p === myPNum ? ' (you)' : ''}
+                  </span>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* Fill bots */}
           {filled < 4 && (
             <button onClick={fillBots} style={{
               width: '100%', padding: '.6rem', borderRadius: 'var(--radius)',

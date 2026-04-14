@@ -72,6 +72,7 @@ export interface GameState {
   hand?: Domino[];
   // Server-computed: never recalculate these on the client
   team_map: Record<number, 1 | 2>;
+  team_selections: Record<number, 1 | 2>;
   tile_counts: Record<number, number>;
   available_bids: number[];
   total_tricks: number;
@@ -117,7 +118,13 @@ export interface SpectatorConfirmedPayload {
   state: GameState;
 }
 
+export interface TeamUpdatedPayload {
+  team_selections: Record<number, 1 | 2>;
+  state: GameState;
+}
+
 export interface GameStartedPayload {
+  player_num?: number;  // new player num after team rearrangement
   state: GameState;
   seat_map: Record<number, 'north' | 'south' | 'east' | 'west'>;
 }
